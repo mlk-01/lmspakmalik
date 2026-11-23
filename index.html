@@ -377,17 +377,20 @@
     // ============================================================================
     // 3. UTILITAS STORAGE AMAN, MIGRASI DATA LAMA, SESSION, & FIREBASE CLOUD SYNC
     // ============================================================================
-    const STORAGE_KEY = 'LMS_PAK_MALIK_FRESH_V40';
+    const STORAGE_KEY = 'LMS_PAK_MALIK_ZERO_V50';
     const LEGACY_KEYS = [
       'EDUSMART_LMS_CBT_DB_V25',
       'EDUSMART_LMS_CBT_DB',
       'LMS_PAK_MALIK_DB',
       'LMS_PAK_MALIK_CLEAN_DB_V30',
       'LMS_PAK_MALIK_ACTIVE_SESSION_V30',
-      'LMS_PAK_MALIK_PENDING_QUEUE_V30'
+      'LMS_PAK_MALIK_PENDING_QUEUE_V30',
+      'LMS_PAK_MALIK_FRESH_V40',
+      'LMS_PAK_MALIK_SESSION_V40',
+      'LMS_PAK_MALIK_QUEUE_V40'
     ];
-    const SESSION_KEY = 'LMS_PAK_MALIK_SESSION_V40';
-    const PENDING_SYNC_KEY = 'LMS_PAK_MALIK_QUEUE_V40';
+    const SESSION_KEY = 'LMS_PAK_MALIK_SESSION_V50';
+    const PENDING_SYNC_KEY = 'LMS_PAK_MALIK_QUEUE_V50';
     const CBT_PROGRESS_PREFIX = 'LMS_PAK_MALIK_CBT_DRAFT_';
 
     let fbApp = null;
@@ -447,13 +450,33 @@
       }
     }
 
-    // Muat penyimpanan lokal bersih & hapus sisa kunci penyimpanan versi lama agar data lama tidak muncul kembali
+    function clearAllCbtDraftsLocal() {
+      try {
+        const toRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(CBT_PROGRESS_PREFIX)) {
+            toRemove.push(k);
+          }
+        }
+        toRemove.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+      } catch (e) {}
+    }
+
+    // Muat penyimpanan lokal bersih & hapus seluruh sisa kunci lama (termasuk draft pengerjaan soal lama)
     function safeLoadLocal() {
       try {
+        let hadLegacy = false;
         LEGACY_KEYS.forEach(k => {
-          try { localStorage.removeItem(k); } catch (e) {}
+          try {
+            if (localStorage.getItem(k) !== null) hadLegacy = true;
+            localStorage.removeItem(k);
+          } catch (e) {}
         });
         const rawCurrent = localStorage.getItem(STORAGE_KEY);
+        if (!rawCurrent && hadLegacy) {
+          clearAllCbtDraftsLocal();
+        }
         return rawCurrent ? JSON.parse(rawCurrent) : null;
       } catch (e) {
         return null;
@@ -1745,12 +1768,26 @@
           let dataTugas = [];
           let extraMetaTugas = [];
 
+          const parentTugasBox = ctxTugas.parentElement;
           if (gradedTasks.length === 0) {
-            labelsTugas = ['Belum Ada Nilai Tugas'];
-            fullLabelsTugas = ['Belum Ada Nilai Tugas'];
-            dataTugas = [0];
-            extraMetaTugas = [''];
-          } else if (modeTugas === 'FOLDER') {
+            if (parentTugasBox) {
+              parentTugasBox.style.height = '200px';
+              let emptyEl = parentTugasBox.querySelector('.chart-empty-placeholder');
+              if (!emptyEl) {
+                emptyEl = document.createElement('div');
+                emptyEl.className = 'chart-empty-placeholder absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-xs text-center p-4 bg-slate-50/70 rounded-xl border border-dashed border-slate-200';
+                emptyEl.innerHTML = '<i class="fa-solid fa-chart-column text-2xl mb-2 text-slate-300"></i><p class="font-bold text-slate-500">Belum Ada Data Nilai Tugas</p><p class="text-[11px] mt-0.5">Diagram akan tampil otomatis setelah ada tugas yang dinilai.</p>';
+                parentTugasBox.appendChild(emptyEl);
+              }
+            }
+            ctxTugas.style.display = 'none';
+          } else {
+            ctxTugas.style.display = 'block';
+            if (parentTugasBox) {
+              const oldEmpty = parentTugasBox.querySelector('.chart-empty-placeholder');
+              if (oldEmpty) oldEmpty.remove();
+            }
+            if (modeTugas === 'FOLDER') {
             // Kelompokkan rata-rata per Judul Tugas agar rapih walau siswa sangat banyak
             const groups = new Map();
             gradedTasks.forEach(s => {
@@ -1839,6 +1876,7 @@
               }
             }
           });
+          }
         }
 
         // 2. DIAGRAM BATANG NILAI LATIHAN SOAL (Horizontal Bar Chart yang rapih & bebas tumpang tindih)
@@ -1851,12 +1889,26 @@
           let dataLatihan = [];
           let extraMetaLatihan = [];
 
+          const parentLatihanBox = ctxLatihan.parentElement;
           if (exams.length === 0) {
-            labelsLatihan = ['Belum Ada Nilai Latihan'];
-            fullLabelsLatihan = ['Belum Ada Nilai Latihan'];
-            dataLatihan = [0];
-            extraMetaLatihan = [''];
-          } else if (modeLatihan === 'FOLDER') {
+            if (parentLatihanBox) {
+              parentLatihanBox.style.height = '200px';
+              let emptyEl = parentLatihanBox.querySelector('.chart-empty-placeholder');
+              if (!emptyEl) {
+                emptyEl = document.createElement('div');
+                emptyEl.className = 'chart-empty-placeholder absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-xs text-center p-4 bg-slate-50/70 rounded-xl border border-dashed border-slate-200';
+                emptyEl.innerHTML = '<i class="fa-solid fa-chart-bar text-2xl mb-2 text-slate-300"></i><p class="font-bold text-slate-500">Belum Ada Data Nilai Latihan</p><p class="text-[11px] mt-0.5">Diagram akan tampil otomatis setelah siswa menyelesaikan latihan soal.</p>';
+                parentLatihanBox.appendChild(emptyEl);
+              }
+            }
+            ctxLatihan.style.display = 'none';
+          } else {
+            ctxLatihan.style.display = 'block';
+            if (parentLatihanBox) {
+              const oldEmpty = parentLatihanBox.querySelector('.chart-empty-placeholder');
+              if (oldEmpty) oldEmpty.remove();
+            }
+            if (modeLatihan === 'FOLDER') {
             // Kelompokkan rata-rata per Folder Mata Pelajaran & Paket agar super rapih!
             const groups = new Map();
             exams.forEach(r => {
@@ -1944,6 +1996,7 @@
               }
             }
           });
+          }
         }
       }, 60);
     }
@@ -4790,18 +4843,18 @@
               </form>
             </div>
 
-            <!-- Panel Bersihkan Data Lama (Lokal & Cloud Firestore) -->
-            <div class="bento-card p-6 mt-6 border-rose-200 bg-rose-50/40">
+            <!-- Panel Reset Sistem ke Kondisi Kosong -->
+            <div class="bento-card p-6 mt-6 border-2 border-rose-200 bg-rose-50/50">
               <h3 class="text-base font-extrabold text-rose-800 flex items-center gap-2 mb-2">
-                <i class="fa-solid fa-trash-can-arrow-up text-rose-600"></i>
-                <span>Bersihkan Data yang Sudah Ada</span>
+                <i class="fa-solid fa-rotate-left text-rose-600"></i>
+                <span>Reset Sistem ke Kondisi Kosong</span>
               </h3>
               <p class="text-xs text-slate-600 leading-relaxed mb-4">
-                Menghapus seluruh data Kelas, Siswa, Guru, Materi, Tugas, Pengumpulan Tugas, Rekap Nilai Latihan, dan Video YouTube (baik di perangkat ini maupun di <strong>Firebase Cloud Firestore</strong> jika terhubung). Bank Soal 9 Mapel & akun Admin tetap dipertahankan.
+                Mengembalikan sistem ke kondisi <strong>benar-benar kosong tanpa data</strong>: menghapus seluruh data Kelas, Siswa, Guru, Materi, Tugas, Pengumpulan Foto Tugas, Data Nilai, Data Pengerjaan Soal, Data Grafik/Diagram Batang, dan Video YouTube (baik di perangkat lokal maupun <strong>Firebase Cloud Firestore</strong>). Bank Soal 9 Mapel & akun Admin tetap aman.
               </p>
-              <button type="button" onclick="window.openResetAllDataModal()" class="w-full py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2">
-                <i class="fa-solid fa-broom"></i>
-                <span>Hapus & Bersihkan Semua Data Sekarang</span>
+              <button type="button" onclick="window.openResetAllDataModal()" class="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white font-extrabold text-xs shadow-lg shadow-rose-600/20 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>Reset Sistem (Kosongkan Semua Data)</span>
               </button>
             </div>
           </div>
@@ -4858,13 +4911,24 @@
       appState.rekapFilter.selectedTaskFolder = null;
       appState.pendingSubmissionPhotos = [];
 
-      // Bersihkan antrean sinkronisasi & penyimpanan lama
+      // Reset seluruh grafik/diagram aktif, draft pengerjaan CBT, antrean sinkronisasi & kunci lama
+      Object.keys(activeCharts).forEach(destroyChartIfExists);
+      clearAllCbtDraftsLocal();
+      appState.studentCbtSession = {
+        step: 'SELECT_SUBJECT',
+        subjectCode: null,
+        packNumber: null,
+        currentIndex: 0,
+        answers: {},
+        revealedQuestions: {},
+        lastResult: null
+      };
       savePendingQueue([]);
       LEGACY_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
       safeSaveLocal(appState.db);
 
-      updateSaveStatusBadge('SAVED', 'Database Bersih');
-      window.showToast('Seluruh data lama berhasil dihapus! Aplikasi kini bersih dan siap diisi data baru.', 'success');
+      updateSaveStatusBadge('SAVED', 'Sistem Kosong & Bersih');
+      window.showToast('Reset berhasil! Seluruh data nilai, pengerjaan, grafik/diagram, kelas, siswa, tugas, dan YouTube telah dikosongkan.', 'success');
       renderActivePage();
     };
 
