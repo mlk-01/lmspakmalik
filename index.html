@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>EduSmart LMS & CBT Semester 1 — Platform Pembelajaran & Evaluasi Digital</title>
+  <title>LMS Pak Malik — Platform Pembelajaran & Evaluasi Digital</title>
   <!-- PWA Manifest via Data URI -->
-  <link rel="manifest" href='data:application/manifest+json,{"name":"EduSmart LMS & CBT Semester 1","short_name":"EduSmart LMS","start_url":".","display":"standalone","background_color":"#F8FAFC","theme_color":"#4F46E5","description":"Aplikasi LMS & Latihan Soal Semester 1 Berbasis Firebase & PWA","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2724%27 fill=%27%234F46E5%27/%3E%3Cpath d=%27M50 22L18 38l32 16 26-13v21h6V38L50 22zm-18 27v14c0 7 18 13 18 13s18-6 18-13V49L50 58 32 49z%27 fill=%27%23ffffff%27/%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"}]}' />
+  <link rel="manifest" href='data:application/manifest+json,{"name":"LMS Pak Malik","short_name":"EduSmart LMS","start_url":".","display":"standalone","background_color":"#F8FAFC","theme_color":"#4F46E5","description":"Aplikasi LMS & Latihan Soal Berbasis Firebase & PWA","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2724%27 fill=%27%234F46E5%27/%3E%3Cpath d=%27M50 22L18 38l32 16 26-13v21h6V38L50 22zm-18 27v14c0 7 18 13 18 13s18-6 18-13V49L50 58 32 49z%27 fill=%27%23ffffff%27/%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"}]}' />
   <meta name="theme-color" content="#4F46E5" />
   <!-- Google Fonts: Plus Jakarta Sans & Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -150,7 +150,7 @@
 
     <!-- COUNTDOWN OVERLAY (3 - 2 - 1 - MULAI) -->
     <div id="cbt-countdown-overlay" class="hidden fixed inset-0 z-[100002] bg-slate-900/90 backdrop-blur-xl flex flex-col items-center justify-center text-white select-none">
-      <div class="text-xs uppercase tracking-widest text-indigo-300 font-bold mb-3" id="cbt-countdown-subtitle">PERSIAPAN LATIHAN SOAL SEMESTER 1</div>
+      <div class="text-xs uppercase tracking-widest text-indigo-300 font-bold mb-3" id="cbt-countdown-subtitle">PERSIAPAN LATIHAN SOAL</div>
       <div id="cbt-countdown-number" class="text-8xl md:text-9xl font-extrabold text-white countdown-num drop-shadow-lg">3</div>
       <p class="mt-6 text-slate-300 text-sm md:text-base font-medium">Konsentrasi dan baca soal dengan teliti...</p>
     </div>
@@ -467,6 +467,7 @@
               currentData.assignments = mergeUniqueById(currentData.assignments, oldParsed.assignments, 'id');
               currentData.submissions = mergeUniqueById(currentData.submissions, oldParsed.submissions, 'id');
               currentData.examResults = mergeUniqueById(currentData.examResults, oldParsed.examResults, 'id');
+              currentData.youtubeVideos = mergeUniqueById(currentData.youtubeVideos, oldParsed.youtubeVideos, 'id');
               if (oldParsed.packMeta) {
                 currentData.packMeta = { ...(oldParsed.packMeta || {}), ...(currentData.packMeta || {}) };
               }
@@ -1277,7 +1278,6 @@
         const rot = (i + packNum) % 4;
         const rotatedOpts = [0, 1, 2, 3].map(k => item.opts[(k + rot) % 4]);
         const newAnsIndex = rotatedOpts.indexOf(item.opts[item.ans]);
-        const hasIllustration = (qNum === 1 || qNum === 15 || qNum === 30);
         result.push({
           id: `${subjectCode}_P${packNum}_Q${qNum}`,
           subjectCode,
@@ -1285,7 +1285,7 @@
           questionNumber: qNum,
           type: 'PG',
           questionText: item.q,
-          imageUrl: hasIllustration ? makeSvgIllustration(`${subjectCode} • Paket ${packNum}`, `Ilustrasi Materi Soal Nomor ${qNum}`) : '',
+          imageUrl: '',
           options: rotatedOpts,
           correctAnswer: newAnsIndex,
           explanation: item.exp
@@ -1365,10 +1365,19 @@
         lastResult: null
       },
       rekapFilter: {
-        tab: 'CBT', // CBT | TUGAS
+        tab: 'CBT',
         className: 'ALL',
-        subject: 'ALL'
+        subject: 'ALL',
+        selectedExamFolder: null, // "SUBCODE::PACKNUM"
+        selectedTaskFolder: null  // assignmentTitle
       },
+      penilaianFolder: null, // assignmentTitle
+      chartMode: {
+        tugas: 'FOLDER',   // FOLDER | SISWA
+        latihan: 'FOLDER'  // FOLDER | SISWA
+      },
+      pendingSubmissionPhotos: [],
+      activeYoutubeVideoId: null,
       db: null
     };
 
@@ -1402,6 +1411,7 @@
         submissions: [],
         questionPacks: generateAll9SubjectsQuestionPacks(),
         packMeta: {},
+        youtubeVideos: [],
         examResults: []
       };
     }
@@ -1428,7 +1438,8 @@
           { col: 'materials', key: 'materials' },
           { col: 'assignments', key: 'assignments' },
           { col: 'submissions', key: 'submissions' },
-          { col: 'exam_results', key: 'examResults' }
+          { col: 'exam_results', key: 'examResults' },
+          { col: 'youtube_videos', key: 'youtubeVideos' }
         ];
 
         for (const item of collectionsMap) {
@@ -1526,9 +1537,22 @@
         existing.submissions = Array.isArray(existing.submissions) ? existing.submissions : [];
         existing.examResults = Array.isArray(existing.examResults) ? existing.examResults : [];
         existing.packMeta = existing.packMeta || {};
+        existing.youtubeVideos = Array.isArray(existing.youtubeVideos) ? existing.youtubeVideos : [];
         if (!existing.questionPacks || Object.keys(existing.questionPacks).length < 27) {
           existing.questionPacks = { ...baseTemplate.questionPacks, ...(existing.questionPacks || {}) };
         }
+        // Bersihkan ilustrasi SVG otomatis lama ("Ilustrasi Materi Soal Nomor ...") pada semua paket soal
+        Object.keys(existing.questionPacks || {}).forEach(pKey => {
+          const arr = existing.questionPacks[pKey];
+          if (Array.isArray(arr)) {
+            arr.forEach(q => {
+              if (q && typeof q.imageUrl === 'string' && q.imageUrl.startsWith('data:image/svg+xml') &&
+                  (q.imageUrl.includes('Ilustrasi%20Materi%20Soal') || q.imageUrl.includes('Ilustrasi Materi Soal'))) {
+                q.imageUrl = '';
+              }
+            });
+          }
+        });
       }
 
       // Pastikan setiap kelas yang dirujuk pada akun siswa terdaftar di tabel `classes` (Integritas Foreign Key)
@@ -1715,26 +1739,77 @@
       }
     }
 
+    function truncateChartLabel(str, maxLen = 22) {
+      const s = String(str || '').trim();
+      return s.length > maxLen ? s.slice(0, maxLen - 1) + '…' : s;
+    }
+
+    window.setChartViewMode = function(chartType, mode) {
+      if (!appState.chartMode) appState.chartMode = { tugas: 'FOLDER', latihan: 'FOLDER' };
+      appState.chartMode[chartType] = mode;
+      renderActivePage();
+    };
+
     function renderBarChartsForGrades(tugasCanvasId, latihanCanvasId, submissionsList, examResultsList) {
       setTimeout(() => {
         if (typeof window.Chart === 'undefined') return;
+        const modeTugas = (appState.chartMode && appState.chartMode.tugas) || 'FOLDER';
+        const modeLatihan = (appState.chartMode && appState.chartMode.latihan) || 'FOLDER';
 
-        // 1. Diagram Batang Nilai Tugas
+        // 1. DIAGRAM BATANG NILAI TUGAS (Horizontal Bar Chart yang selalu rapih & tidak bertumpuk)
         const ctxTugas = document.getElementById(tugasCanvasId);
         if (ctxTugas) {
           destroyChartIfExists(tugasCanvasId);
           const gradedTasks = (submissionsList || []).filter(s => s.score !== null && s.score !== undefined);
-          const labelsTugas = gradedTasks.length > 0
-            ? gradedTasks.map(s => `${s.studentName} (${s.subjectManual})`)
-            : ['Belum Ada Nilai Tugas'];
-          const dataTugas = gradedTasks.length > 0
-            ? gradedTasks.map(s => Number(s.score) || 0)
-            : [0];
+          let labelsTugas = [];
+          let fullLabelsTugas = [];
+          let dataTugas = [];
+          let extraMetaTugas = [];
+
+          if (gradedTasks.length === 0) {
+            labelsTugas = ['Belum Ada Nilai Tugas'];
+            fullLabelsTugas = ['Belum Ada Nilai Tugas'];
+            dataTugas = [0];
+            extraMetaTugas = [''];
+          } else if (modeTugas === 'FOLDER') {
+            // Kelompokkan rata-rata per Judul Tugas agar rapih walau siswa sangat banyak
+            const groups = new Map();
+            gradedTasks.forEach(s => {
+              const key = `${s.assignmentTitle || 'Tugas'} (${s.subjectManual || '-'})`;
+              if (!groups.has(key)) groups.set(key, { sum: 0, count: 0, title: key });
+              const g = groups.get(key);
+              g.sum += Number(s.score) || 0;
+              g.count += 1;
+            });
+            groups.forEach(g => {
+              const avg = Math.round(g.sum / g.count);
+              labelsTugas.push(truncateChartLabel(g.title, 24));
+              fullLabelsTugas.push(g.title);
+              dataTugas.push(avg);
+              extraMetaTugas.push(`Rata-rata dari ${g.count} siswa`);
+            });
+          } else {
+            gradedTasks.forEach(s => {
+              const lbl = `${s.studentName} (${s.subjectManual})`;
+              labelsTugas.push(truncateChartLabel(lbl, 22));
+              fullLabelsTugas.push(`${s.studentName} — ${s.assignmentTitle} (${s.subjectManual})`);
+              dataTugas.push(Number(s.score) || 0);
+              extraMetaTugas.push(s.className || '');
+            });
+          }
+
+          // Atur tinggi dinamis di dalam kontainer scrollable agar batang selalu tebal & rapih
+          const parentTugas = ctxTugas.parentElement;
+          if (parentTugas) {
+            const neededH = Math.max(250, labelsTugas.length * 42 + 56);
+            parentTugas.style.height = `${neededH}px`;
+          }
+
           const colorsTugas = dataTugas.map(val =>
-            val >= 85 ? 'rgba(16, 185, 129, 0.85)' :
-            val >= 70 ? 'rgba(59, 130, 246, 0.85)' :
-            val >= 55 ? 'rgba(245, 158, 11, 0.85)' :
-            'rgba(239, 68, 68, 0.85)'
+            val >= 85 ? 'rgba(16, 185, 129, 0.88)' :
+            val >= 70 ? 'rgba(59, 130, 246, 0.88)' :
+            val >= 55 ? 'rgba(245, 158, 11, 0.88)' :
+            'rgba(239, 68, 68, 0.88)'
           );
 
           activeCharts[tugasCanvasId] = new window.Chart(ctxTugas, {
@@ -1742,61 +1817,104 @@
             data: {
               labels: labelsTugas,
               datasets: [{
-                label: 'Nilai Tugas Siswa',
+                label: modeTugas === 'FOLDER' ? 'Rata-rata Nilai Tugas' : 'Nilai Tugas Siswa',
                 data: dataTugas,
                 backgroundColor: colorsTugas,
-                borderColor: colorsTugas.map(c => c.replace('0.85', '1')),
-                borderWidth: 1.5,
+                borderColor: colorsTugas.map(c => c.replace('0.88', '1')),
+                borderWidth: 1,
                 borderRadius: 8,
-                maxBarThickness: 48
+                barThickness: 22,
+                maxBarThickness: 28
               }]
             },
             options: {
+              indexAxis: 'y',
               responsive: true,
               maintainAspectRatio: false,
+              layout: { padding: { left: 4, right: 18, top: 4, bottom: 4 } },
               plugins: {
-                legend: { display: true, position: 'top' },
+                legend: { display: true, position: 'top', labels: { boxWidth: 14, font: { size: 11, weight: 'bold' } } },
                 tooltip: {
                   callbacks: {
-                    label: function(ctx) {
-                      const v = ctx.parsed.y;
+                    title: (items) => fullLabelsTugas[items[0].dataIndex] || '',
+                    label: (ctx) => {
+                      const v = ctx.parsed.x;
                       const p = calculatePredicate(v);
-                      return ` Nilai Tugas: ${v} (Predikat ${p.grade} - ${p.label})`;
+                      const meta = extraMetaTugas[ctx.dataIndex];
+                      return ` Nilai: ${v} • Predikat ${p.grade} (${p.label})${meta ? ' — ' + meta : ''}`;
                     }
                   }
                 }
               },
               scales: {
-                y: {
+                x: {
                   beginAtZero: true,
                   max: 100,
-                  ticks: { stepSize: 20 },
-                  title: { display: true, text: 'Nilai (0 - 100)' }
+                  ticks: { stepSize: 20, font: { size: 11 } },
+                  grid: { color: 'rgba(148, 163, 184, 0.18)' }
                 },
-                x: {
-                  ticks: { maxRotation: 25, minRotation: 0 }
+                y: {
+                  ticks: { autoSkip: false, font: { size: 11, weight: '600' }, color: '#334155' },
+                  grid: { display: false }
                 }
               }
             }
           });
         }
 
-        // 2. Diagram Batang Nilai Latihan Soal Semester 1
+        // 2. DIAGRAM BATANG NILAI LATIHAN SOAL (Horizontal Bar Chart yang rapih & bebas tumpang tindih)
         const ctxLatihan = document.getElementById(latihanCanvasId);
         if (ctxLatihan) {
           destroyChartIfExists(latihanCanvasId);
           const exams = examResultsList || [];
-          const labelsLatihan = exams.length > 0
-            ? exams.map(r => `${r.studentName} - ${r.subjectName} (P${r.packNumber})`)
-            : ['Belum Ada Nilai Latihan'];
-          const dataLatihan = exams.length > 0
-            ? exams.map(r => Number(r.score) || 0)
-            : [0];
+          let labelsLatihan = [];
+          let fullLabelsLatihan = [];
+          let dataLatihan = [];
+          let extraMetaLatihan = [];
+
+          if (exams.length === 0) {
+            labelsLatihan = ['Belum Ada Nilai Latihan'];
+            fullLabelsLatihan = ['Belum Ada Nilai Latihan'];
+            dataLatihan = [0];
+            extraMetaLatihan = [''];
+          } else if (modeLatihan === 'FOLDER') {
+            // Kelompokkan rata-rata per Folder Mata Pelajaran & Paket agar super rapih!
+            const groups = new Map();
+            exams.forEach(r => {
+              const key = `${r.subjectName || r.subjectCode} • P${r.packNumber}`;
+              if (!groups.has(key)) groups.set(key, { sum: 0, count: 0, title: `${r.subjectName || r.subjectCode} — Paket ${r.packNumber}`, short: key });
+              const g = groups.get(key);
+              g.sum += Number(r.score) || 0;
+              g.count += 1;
+            });
+            groups.forEach(g => {
+              const avg = Math.round(g.sum / g.count);
+              labelsLatihan.push(truncateChartLabel(g.short, 24));
+              fullLabelsLatihan.push(g.title);
+              dataLatihan.push(avg);
+              extraMetaLatihan.push(`Rata-rata dari ${g.count} pengerjaan`);
+            });
+          } else {
+            exams.forEach(r => {
+              const shortLbl = `${r.studentName} (${r.subjectCode} P${r.packNumber})`;
+              labelsLatihan.push(truncateChartLabel(shortLbl, 24));
+              fullLabelsLatihan.push(`${r.studentName} (${r.className}) — ${r.subjectName} Paket ${r.packNumber}`);
+              dataLatihan.push(Number(r.score) || 0);
+              extraMetaLatihan.push(`${r.correctCount}/${r.totalQuestions} Benar`);
+            });
+          }
+
+          const parentLatihan = ctxLatihan.parentElement;
+          if (parentLatihan) {
+            const neededH = Math.max(250, labelsLatihan.length * 42 + 56);
+            parentLatihan.style.height = `${neededH}px`;
+          }
+
           const colorsLatihan = dataLatihan.map(val =>
-            val >= 85 ? 'rgba(79, 70, 229, 0.85)' :
-            val >= 70 ? 'rgba(14, 165, 233, 0.85)' :
-            val >= 55 ? 'rgba(245, 158, 11, 0.85)' :
-            'rgba(244, 63, 94, 0.85)'
+            val >= 85 ? 'rgba(79, 70, 229, 0.88)' :
+            val >= 70 ? 'rgba(14, 165, 233, 0.88)' :
+            val >= 55 ? 'rgba(245, 158, 11, 0.88)' :
+            'rgba(244, 63, 94, 0.88)'
           );
 
           activeCharts[latihanCanvasId] = new window.Chart(ctxLatihan, {
@@ -1804,39 +1922,45 @@
             data: {
               labels: labelsLatihan,
               datasets: [{
-                label: 'Skor Latihan Soal Semester 1',
+                label: modeLatihan === 'FOLDER' ? 'Rata-rata Skor Latihan per Mapel & Paket' : 'Skor Latihan Soal Siswa',
                 data: dataLatihan,
                 backgroundColor: colorsLatihan,
-                borderColor: colorsLatihan.map(c => c.replace('0.85', '1')),
-                borderWidth: 1.5,
+                borderColor: colorsLatihan.map(c => c.replace('0.88', '1')),
+                borderWidth: 1,
                 borderRadius: 8,
-                maxBarThickness: 48
+                barThickness: 22,
+                maxBarThickness: 28
               }]
             },
             options: {
+              indexAxis: 'y',
               responsive: true,
               maintainAspectRatio: false,
+              layout: { padding: { left: 4, right: 18, top: 4, bottom: 4 } },
               plugins: {
-                legend: { display: true, position: 'top' },
+                legend: { display: true, position: 'top', labels: { boxWidth: 14, font: { size: 11, weight: 'bold' } } },
                 tooltip: {
                   callbacks: {
-                    label: function(ctx) {
-                      const v = ctx.parsed.y;
+                    title: (items) => fullLabelsLatihan[items[0].dataIndex] || '',
+                    label: (ctx) => {
+                      const v = ctx.parsed.x;
                       const p = calculatePredicate(v);
-                      return ` Skor Latihan: ${v} (Predikat ${p.grade} - ${p.label})`;
+                      const meta = extraMetaLatihan[ctx.dataIndex];
+                      return ` Skor: ${v} • Predikat ${p.grade} (${p.label})${meta ? ' — ' + meta : ''}`;
                     }
                   }
                 }
               },
               scales: {
-                y: {
+                x: {
                   beginAtZero: true,
                   max: 100,
-                  ticks: { stepSize: 20 },
-                  title: { display: true, text: 'Skor (0 - 100)' }
+                  ticks: { stepSize: 20, font: { size: 11 } },
+                  grid: { color: 'rgba(148, 163, 184, 0.18)' }
                 },
-                x: {
-                  ticks: { maxRotation: 25, minRotation: 0 }
+                y: {
+                  ticks: { autoSkip: false, font: { size: 11, weight: '600' }, color: '#334155' },
+                  grid: { display: false }
                 }
               }
             }
@@ -2131,9 +2255,10 @@
       { id: 'admin_kelas_mapel', label: 'Kelola Kelas, Mapel & Materi', shortLabel: 'Kelas/Mapel', icon: 'fa-chalkboard-user' },
       { id: 'admin_siswa', label: 'Data Siswa & Guru', shortLabel: 'Siswa/Guru', icon: 'fa-users' },
       { id: 'admin_tugas', label: 'Kelola Tugas', shortLabel: 'Tugas', icon: 'fa-list-check' },
-      { id: 'admin_cbt', label: 'Latihan Soal Semester 1', shortLabel: 'Bank Soal', icon: 'fa-file-signature' },
+      { id: 'admin_cbt', label: 'Latihan Soal', shortLabel: 'Bank Soal', icon: 'fa-file-signature' },
       { id: 'admin_penilaian', label: 'Pengumpulan & Penilaian', shortLabel: 'Penilaian', icon: 'fa-clipboard-check' },
       { id: 'admin_rekap', label: 'Rekap Nilai', shortLabel: 'Rekap', icon: 'fa-chart-column' },
+      { id: 'admin_youtube', label: 'YouTube', shortLabel: 'YouTube', icon: 'fa-circle-play' },
       { id: 'admin_pengaturan', label: 'Pengaturan', shortLabel: 'Pengaturan', icon: 'fa-sliders' }
     ];
 
@@ -2141,9 +2266,10 @@
       { id: 'siswa_beranda', label: 'Beranda & Kelas Saya', shortLabel: 'Beranda', icon: 'fa-house' },
       { id: 'siswa_kelas_materi', label: 'Ruang Kelas & Materi', shortLabel: 'Kelas/Materi', icon: 'fa-chalkboard' },
       { id: 'siswa_biodata', label: 'Biodata', shortLabel: 'Biodata', icon: 'fa-id-badge' },
-      { id: 'siswa_cbt', label: 'Latihan Soal Semester 1', shortLabel: 'Latihan Soal', icon: 'fa-laptop-file' },
+      { id: 'siswa_cbt', label: 'Latihan Soal', shortLabel: 'Latihan Soal', icon: 'fa-laptop-file' },
       { id: 'siswa_daftar_tugas', label: 'Daftar Tugas', shortLabel: 'Tugas', icon: 'fa-book-bookmark' },
       { id: 'siswa_kumpul_tugas', label: 'Kumpulkan Tugas', shortLabel: 'Kumpulkan', icon: 'fa-cloud-arrow-up' },
+      { id: 'siswa_youtube', label: 'YouTube', shortLabel: 'YouTube', icon: 'fa-circle-play' },
       { id: 'siswa_nilai', label: 'Nilai & Progres', shortLabel: 'Nilai', icon: 'fa-award' }
     ];
 
@@ -2252,6 +2378,9 @@
         case 'admin_rekap':
           renderAdminRekap(container);
           break;
+        case 'admin_youtube':
+          renderAdminYoutube(container);
+          break;
         case 'admin_pengaturan':
           renderAdminPengaturan(container);
           break;
@@ -2272,6 +2401,9 @@
           break;
         case 'siswa_kumpul_tugas':
           renderSiswaKumpulTugas(container);
+          break;
+        case 'siswa_youtube':
+          renderSiswaYoutube(container);
           break;
         case 'siswa_nilai':
           renderSiswaNilai(container);
@@ -2974,7 +3106,7 @@
     };
 
     // ----------------------------------------------------------------------------
-    // MENU ADMIN 4: LATIHAN SOAL SEMESTER 1 (9 MAPEL x 3 PAKET x 50 SOAL)
+    // MENU ADMIN 4: LATIHAN SOAL (9 MAPEL x 3 PAKET x 50 SOAL)
     //              Generator Soal, Edit Soal, Tambah Soal, Upload Gambar, Link Gambar
     // ----------------------------------------------------------------------------
     function renderAdminCbt(container) {
@@ -3032,7 +3164,7 @@
 
         <!-- Pemilih 9 Mata Pelajaran -->
         <div class="mb-5">
-          <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-2.5">Pilih Mata Pelajaran (9 Mapel Semester 1):</label>
+          <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-2.5">Pilih Mata Pelajaran (9 Mapel):</label>
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2.5">
             ${SUBJECTS_MASTER.map(sub => {
               const active = sub.code === f.subjectCode;
@@ -3754,162 +3886,155 @@
     // ----------------------------------------------------------------------------
     // MENU ADMIN 5: PENGUMPULAN DAN PENILAIAN (DISESUAIKAN DENGAN TUGAS)
     // ----------------------------------------------------------------------------
+    window.openPhotoZoomModal = function(imgSrc, caption = 'Lampiran Foto Tugas') {
+      window.openGlobalModal(caption, `
+        <div class="text-center">
+          <img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(caption)}" class="max-w-full max-h-[68vh] mx-auto rounded-xl border border-slate-200 object-contain bg-slate-50" />
+        </div>
+      `);
+    };
+
+    window.selectPenilaianFolder = function(folderTitle) {
+      appState.penilaianFolder = folderTitle;
+      renderActivePage();
+    };
+
     function renderAdminPenilaian(container) {
       const submissions = appState.db.submissions || [];
       const examResults = appState.db.examResults || [];
+      const activeFolder = appState.penilaianFolder;
+      const modeTugas = (appState.chartMode && appState.chartMode.tugas) || 'FOLDER';
+      const modeLatihan = (appState.chartMode && appState.chartMode.latihan) || 'FOLDER';
+
+      // Kelompokkan pengumpulan tugas per Folder Judul Tugas
+      const folderMap = new Map();
+      submissions.forEach(sub => {
+        const key = sub.assignmentTitle || 'Tugas Tanpa Judul';
+        if (!folderMap.has(key)) {
+          folderMap.set(key, {
+            title: key,
+            subjectManual: sub.subjectManual || '-',
+            className: sub.className || '-',
+            items: []
+          });
+        }
+        folderMap.get(key).items.push(sub);
+      });
+      const folders = Array.from(folderMap.values());
+      const currentFolderObj = activeFolder ? folderMap.get(activeFolder) : null;
 
       container.innerHTML = `
-        <!-- Visualisasi Diagram Batang Nilai Tugas & Nilai Latihan di Menu Penilaian -->
+        <!-- Visualisasi Diagram Batang Nilai Tugas & Nilai Latihan (Rapih & Scrollable) -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div class="bento-card p-6">
-            <div class="flex items-center justify-between mb-3">
+          <div class="bento-card p-5 md:p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div>
                 <h3 class="text-sm md:text-base font-extrabold text-slate-900 flex items-center gap-2">
                   <i class="fa-solid fa-chart-column text-emerald-600"></i>
                   <span>Diagram Batang Nilai Tugas</span>
                 </h3>
-                <p class="text-xs text-slate-500">Perbandingan capaian nilai tugas mandiri siswa yang telah dinilai.</p>
+                <p class="text-[11px] text-slate-500">Tampilan horizontal rapih, tidak bertumpuk.</p>
               </div>
-              <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold">${submissions.length} Tugas</span>
+              <div class="inline-flex rounded-xl bg-slate-100 p-1 text-[11px] font-bold">
+                <button type="button" onclick="window.setChartViewMode('tugas', 'FOLDER')" class="px-2.5 py-1 rounded-lg transition ${modeTugas === 'FOLDER' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}">Per Tugas</button>
+                <button type="button" onclick="window.setChartViewMode('tugas', 'SISWA')" class="px-2.5 py-1 rounded-lg transition ${modeTugas === 'SISWA' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}">Per Siswa</button>
+              </div>
             </div>
-            <div class="relative h-72 w-full">
-              <canvas id="chart-penilaian-tugas"></canvas>
+            <div class="max-h-80 overflow-y-auto pr-1">
+              <div class="relative w-full" style="height: 260px;">
+                <canvas id="chart-penilaian-tugas"></canvas>
+              </div>
             </div>
           </div>
 
-          <div class="bento-card p-6">
-            <div class="flex items-center justify-between mb-3">
+          <div class="bento-card p-5 md:p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div>
                 <h3 class="text-sm md:text-base font-extrabold text-slate-900 flex items-center gap-2">
                   <i class="fa-solid fa-chart-bar text-indigo-600"></i>
                   <span>Diagram Batang Nilai Latihan Soal</span>
                 </h3>
-                <p class="text-xs text-slate-500">Perbandingan skor Latihan Soal Semester 1 beserta predikatnya.</p>
+                <p class="text-[11px] text-slate-500">Rata-rata per Mapel & Paket atau detail per siswa.</p>
               </div>
-              <span class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold">${examResults.length} Hasil Latihan</span>
+              <div class="inline-flex rounded-xl bg-slate-100 p-1 text-[11px] font-bold">
+                <button type="button" onclick="window.setChartViewMode('latihan', 'FOLDER')" class="px-2.5 py-1 rounded-lg transition ${modeLatihan === 'FOLDER' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}">Per Mapel/Paket</button>
+                <button type="button" onclick="window.setChartViewMode('latihan', 'SISWA')" class="px-2.5 py-1 rounded-lg transition ${modeLatihan === 'SISWA' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}">Per Siswa</button>
+              </div>
             </div>
-            <div class="relative h-72 w-full">
-              <canvas id="chart-penilaian-latihan"></canvas>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tabel Rekap Nilai Tugas & Rekap Nilai Latihan di Menu Penilaian -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <!-- Rekap Nilai Tugas -->
-          <div class="bento-card p-6">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm md:text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <i class="fa-solid fa-clipboard-check text-emerald-600"></i>
-                <span>Rekap Nilai Tugas (${submissions.length})</span>
-              </h3>
-              <button type="button" onclick="window.exportRekapToCsv()" class="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition">
-                <i class="fa-solid fa-download mr-1"></i> Export CSV
-              </button>
-            </div>
-            <div class="overflow-x-auto max-h-64">
-              <table class="w-full text-left border-collapse">
-                <thead>
-                  <tr class="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50">
-                    <th class="py-2.5 px-2.5">Siswa & Kelas</th>
-                    <th class="py-2.5 px-2.5">Mapel & Judul Tugas</th>
-                    <th class="py-2.5 px-2.5">Nilai</th>
-                    <th class="py-2.5 px-2.5">Predikat</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-200/70 text-xs">
-                  ${submissions.map(tk => {
-                    const hasScore = tk.score !== null && tk.score !== undefined;
-                    const pred = hasScore ? calculatePredicate(tk.score) : null;
-                    return `
-                      <tr class="hover:bg-slate-50">
-                        <td class="py-2.5 px-2.5">
-                          <div class="font-bold text-slate-900">${escapeHtml(tk.studentName)}</div>
-                          <div class="text-[11px] text-slate-500">${escapeHtml(tk.className)}</div>
-                        </td>
-                        <td class="py-2.5 px-2.5">
-                          <div class="font-bold text-indigo-700">${escapeHtml(tk.subjectManual)}</div>
-                          <div class="text-[11px] text-slate-600 truncate max-w-[180px]">${escapeHtml(tk.assignmentTitle)}</div>
-                        </td>
-                        <td class="py-2.5 px-2.5 font-extrabold text-sm text-slate-900">${hasScore ? tk.score : '-'}</td>
-                        <td class="py-2.5 px-2.5">
-                          ${pred
-                            ? `<span class="px-2 py-0.5 rounded-md border font-bold text-[11px] ${pred.badgeClass}">${pred.grade} (${pred.label})</span>`
-                            : `<span class="text-amber-600 font-bold text-[11px]">Menunggu</span>`
-                          }
-                        </td>
-                      </tr>
-                    `;
-                  }).join('') || '<tr><td colspan="4" class="py-4 text-center text-slate-400">Belum ada data tugas.</td></tr>'}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Rekap Nilai Latihan -->
-          <div class="bento-card p-6">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm md:text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <i class="fa-solid fa-file-signature text-indigo-600"></i>
-                <span>Rekap Nilai Latihan (${examResults.length})</span>
-              </h3>
-              <button type="button" onclick="window.navigateToMenu('admin_rekap')" class="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition">
-                Lihat Detail →
-              </button>
-            </div>
-            <div class="overflow-x-auto max-h-64">
-              <table class="w-full text-left border-collapse">
-                <thead>
-                  <tr class="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50">
-                    <th class="py-2.5 px-2.5">Siswa & Kelas</th>
-                    <th class="py-2.5 px-2.5">Mapel & Paket</th>
-                    <th class="py-2.5 px-2.5">Skor</th>
-                    <th class="py-2.5 px-2.5">Predikat</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-200/70 text-xs">
-                  ${examResults.map(ex => {
-                    const pred = calculatePredicate(ex.score);
-                    return `
-                      <tr class="hover:bg-slate-50">
-                        <td class="py-2.5 px-2.5">
-                          <div class="font-bold text-slate-900">${escapeHtml(ex.studentName)}</div>
-                          <div class="text-[11px] text-slate-500">${escapeHtml(ex.className)}</div>
-                        </td>
-                        <td class="py-2.5 px-2.5">
-                          <div class="font-bold text-indigo-700">${escapeHtml(ex.subjectName)}</div>
-                          <div class="text-[11px] text-slate-500">Paket ${ex.packNumber} (${ex.correctCount}/${ex.totalQuestions} Benar)</div>
-                        </td>
-                        <td class="py-2.5 px-2.5 font-extrabold text-sm text-slate-900">${ex.score}</td>
-                        <td class="py-2.5 px-2.5">
-                          <span class="px-2 py-0.5 rounded-md border font-bold text-[11px] ${pred.badgeClass}">${pred.grade} (${pred.label})</span>
-                        </td>
-                      </tr>
-                    `;
-                  }).join('') || '<tr><td colspan="4" class="py-4 text-center text-slate-400">Belum ada data latihan.</td></tr>'}
-                </tbody>
-              </table>
+            <div class="max-h-80 overflow-y-auto pr-1">
+              <div class="relative w-full" style="height: 260px;">
+                <canvas id="chart-penilaian-latihan"></canvas>
+              </div>
             </div>
           </div>
         </div>
 
+        <!-- Pengumpulan & Penilaian Tugas Siswa PER FOLDER JUDUL TUGAS -->
         <div class="bento-card p-6">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
             <div>
-              <h3 class="text-base font-extrabold text-slate-900">Pengumpulan & Penilaian Tugas Siswa (${submissions.length})</h3>
-              <p class="text-xs text-slate-500">Periksa foto/lampiran tugas yang dikumpulkan siswa dan berikan nilai sesuai batas nilai maksimal tugas.</p>
+              <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <i class="fa-solid fa-folder-open text-amber-500"></i>
+                <span>${currentFolderObj ? `Folder Tugas: ${escapeHtml(currentFolderObj.title)}` : `Folder Pengumpulan & Penilaian Tugas (${folders.length} Folder Tugas)`}</span>
+              </h3>
+              <p class="text-xs text-slate-500">
+                ${currentFolderObj
+                  ? `Menampilkan ${currentFolderObj.items.length} pengumpulan siswa pada tugas ini.`
+                  : 'Pengumpulan tugas disusun rapi berdasarkan Folder Judul Tugas. Klik folder untuk memeriksa foto dan memberi nilai.'}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              ${currentFolderObj ? `
+                <button type="button" onclick="window.selectPenilaianFolder(null)" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+                  <i class="fa-solid fa-arrow-left mr-1"></i> Kembali ke Daftar Folder
+                </button>
+              ` : ''}
+              <button type="button" onclick="window.exportRekapToCsv()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition">
+                <i class="fa-solid fa-file-csv mr-1"></i> Export CSV
+              </button>
             </div>
           </div>
 
-          ${submissions.length === 0 ? `
+          ${folders.length === 0 ? `
             <div class="p-10 text-center text-slate-400">
               <i class="fa-solid fa-folder-open text-3xl mb-2"></i>
               <p class="text-sm font-semibold">Belum ada tugas yang dikumpulkan oleh siswa.</p>
             </div>
+          ` : !currentFolderObj ? `
+            <!-- Grid Folder Judul Tugas -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              ${folders.map(fld => {
+                const gradedCount = fld.items.filter(i => i.score !== null && i.score !== undefined).length;
+                const pendingCount = fld.items.length - gradedCount;
+                const safeTitleAttr = escapeHtml(fld.title).replace(/'/g, '&#39;');
+                return `
+                  <div onclick="window.selectPenilaianFolder('${safeTitleAttr}')" class="p-5 rounded-2xl border-2 border-slate-200 hover:border-indigo-400 bg-slate-50/70 hover:bg-white cursor-pointer transition group flex flex-col justify-between gap-3">
+                    <div>
+                      <div class="flex items-center justify-between mb-3">
+                        <div class="w-11 h-11 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl group-hover:scale-105 transition">
+                          <i class="fa-solid fa-folder"></i>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-extrabold">${fld.items.length} Siswa</span>
+                      </div>
+                      <h4 class="text-sm font-extrabold text-slate-900 group-hover:text-indigo-600 line-clamp-2">${escapeHtml(fld.title)}</h4>
+                      <p class="text-xs text-slate-500 mt-1">${escapeHtml(fld.subjectManual)} • ${escapeHtml(fld.className)}</p>
+                    </div>
+                    <div class="pt-3 border-t border-slate-200/70 flex items-center justify-between text-[11px] font-bold">
+                      <span class="text-emerald-700"><i class="fa-solid fa-circle-check mr-1"></i>${gradedCount} Dinilai</span>
+                      <span class="${pendingCount > 0 ? 'text-amber-600' : 'text-slate-400'}">${pendingCount} Menunggu</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
           ` : `
+            <!-- Isi Folder: Daftar Pengumpulan Siswa untuk Judul Tugas Terpilih -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              ${submissions.map(subm => {
+              ${currentFolderObj.items.map(subm => {
                 const pred = subm.score !== null && subm.score !== undefined ? calculatePredicate(subm.score) : null;
+                const photos = Array.isArray(subm.photoDataUrls) && subm.photoDataUrls.length > 0
+                  ? subm.photoDataUrls
+                  : (subm.photoDataUrl ? [subm.photoDataUrl] : []);
                 return `
                   <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 flex flex-col justify-between gap-4">
                     <div>
@@ -3920,13 +4045,16 @@
                         </div>
                         <span class="text-[11px] text-slate-500">${escapeHtml(subm.submittedAt)}</span>
                       </div>
-                      <h4 class="text-sm font-extrabold text-slate-900">${escapeHtml(subm.assignmentTitle)}</h4>
-                      <p class="text-xs font-bold text-indigo-700 mt-1"><i class="fa-solid fa-user-graduate mr-1"></i> Siswa: ${escapeHtml(subm.studentName)} (${escapeHtml(subm.studentUsername)})</p>
+                      <p class="text-sm font-extrabold text-indigo-700"><i class="fa-solid fa-user-graduate mr-1"></i> ${escapeHtml(subm.studentName)} <span class="text-xs font-normal text-slate-500">(${escapeHtml(subm.studentUsername)})</span></p>
 
-                      ${subm.photoDataUrl ? `
+                      ${photos.length > 0 ? `
                         <div class="mt-3">
-                          <p class="text-[11px] font-bold text-slate-500 mb-1">Foto / Gambar Hasil Tugas Siswa:</p>
-                          <img src="${escapeHtml(subm.photoDataUrl)}" alt="Foto Tugas" class="w-full max-h-48 object-contain rounded-xl border border-slate-200 bg-white p-1" />
+                          <p class="text-[11px] font-bold text-slate-500 mb-1.5">Foto / Gambar Hasil Tugas (${photos.length} Foto — Klik untuk Perbesar):</p>
+                          <div class="grid ${photos.length > 1 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1'} gap-2">
+                            ${photos.map((pUrl, pIdx) => `
+                              <img src="${escapeHtml(pUrl)}" onclick="window.openPhotoZoomModal(this.src, 'Foto ${pIdx + 1} — ${escapeHtml(subm.studentName)}')" alt="Foto Tugas ${pIdx + 1}" class="w-full h-36 object-cover rounded-xl border border-slate-200 bg-white p-1 cursor-pointer hover:opacity-90 transition" />
+                            `).join('')}
+                          </div>
                         </div>
                       ` : ''}
 
@@ -3946,7 +4074,7 @@
                           <input type="text" id="grade-feedback-${subm.id}" value="${escapeHtml(subm.teacherFeedback || '')}" placeholder="Berikan apresiasi atau catatan perbaikan..." class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs" />
                         </div>
                       </div>
-                      <div class="flex items-center justify-between">
+                      <div class="flex items-center justify-between gap-2">
                         <div>
                           ${pred
                             ? `<span class="px-2.5 py-1 rounded-lg border text-xs font-bold ${pred.badgeClass}">Nilai: ${subm.score} • Predikat ${pred.grade} (${pred.label})</span>`
@@ -3985,31 +4113,77 @@
     };
 
     // ----------------------------------------------------------------------------
-    // MENU ADMIN 6: REKAP NILAI (LATIHAN SOAL SEMESTER 1 & TUGAS + EXPORT CSV)
+    // MENU ADMIN 6: REKAP NILAI (LATIHAN SOAL & TUGAS + EXPORT CSV)
     // ----------------------------------------------------------------------------
+    window.selectRekapExamFolder = function(folderKey) {
+      appState.rekapFilter.selectedExamFolder = folderKey;
+      renderActivePage();
+    };
+
+    window.selectRekapTaskFolder = function(folderTitle) {
+      appState.rekapFilter.selectedTaskFolder = folderTitle;
+      renderActivePage();
+    };
+
     function renderAdminRekap(container) {
       const rf = appState.rekapFilter;
       const examResults = appState.db.examResults || [];
       const submissions = appState.db.submissions || [];
       const classes = appState.db.classes || [];
+      const modeTugas = (appState.chartMode && appState.chartMode.tugas) || 'FOLDER';
+      const modeLatihan = (appState.chartMode && appState.chartMode.latihan) || 'FOLDER';
 
       const filteredExams = examResults.filter(r => {
-        if (rf.className !== 'ALL' && r.className !== rf.className) return false;
+        if (rf.className !== 'ALL' && !isSameClass(r.className, rf.className)) return false;
         if (rf.subject !== 'ALL' && r.subjectCode !== rf.subject) return false;
         return true;
       });
 
       const filteredTasks = submissions.filter(s => {
-        if (rf.className !== 'ALL' && s.className !== rf.className) return false;
+        if (rf.className !== 'ALL' && !isSameClass(s.className, rf.className)) return false;
         return true;
       });
+
+      // Kelompokkan Rekap Latihan Soal PER FOLDER MATA PELAJARAN & PAKET
+      const examFolderMap = new Map();
+      filteredExams.forEach(ex => {
+        const key = `${ex.subjectCode}::${ex.packNumber}`;
+        if (!examFolderMap.has(key)) {
+          examFolderMap.set(key, {
+            key,
+            subjectCode: ex.subjectCode,
+            subjectName: ex.subjectName || ex.subjectCode,
+            packNumber: ex.packNumber,
+            items: []
+          });
+        }
+        examFolderMap.get(key).items.push(ex);
+      });
+      const examFolders = Array.from(examFolderMap.values());
+      const activeExamFolder = rf.selectedExamFolder ? examFolderMap.get(rf.selectedExamFolder) : null;
+
+      // Kelompokkan Rekap Nilai Tugas PER FOLDER JUDUL TUGAS
+      const taskFolderMap = new Map();
+      filteredTasks.forEach(tk => {
+        const key = tk.assignmentTitle || 'Tugas';
+        if (!taskFolderMap.has(key)) {
+          taskFolderMap.set(key, {
+            title: key,
+            subjectManual: tk.subjectManual || '-',
+            items: []
+          });
+        }
+        taskFolderMap.get(key).items.push(tk);
+      });
+      const taskFolders = Array.from(taskFolderMap.values());
+      const activeTaskFolder = rf.selectedTaskFolder ? taskFolderMap.get(rf.selectedTaskFolder) : null;
 
       container.innerHTML = `
         <div class="bento-card p-6 mb-6">
           <div class="flex flex-wrap items-center justify-between gap-4 mb-5">
             <div>
-              <h3 class="text-base font-extrabold text-slate-900">Rekapitulasi Nilai Terpadu Semester 1</h3>
-              <p class="text-xs text-slate-500">Menampilkan hasil otomatis Latihan Soal Semester 1 (beserta Predikat A–E) dan Penilaian Tugas.</p>
+              <h3 class="text-base font-extrabold text-slate-900">Rekapitulasi Nilai Terpadu (Per Folder)</h3>
+              <p class="text-xs text-slate-500">Hasil Latihan Soal dikelompokkan per Folder Mata Pelajaran & Paket, serta Tugas per Folder Judul Tugas.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <select onchange="window.setRekapClassFilter(this.value)" class="px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white">
@@ -4024,135 +4198,193 @@
           </div>
 
           <!-- Pedoman Predikat A - E -->
-          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 mb-5 text-xs">
-            <div class="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
-              <div class="font-extrabold">Predikat A (85 – 100)</div>
-              <div class="text-[11px]">Sangat Baik</div>
-            </div>
-            <div class="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900">
-              <div class="font-extrabold">Predikat B (70 – 84)</div>
-              <div class="text-[11px]">Baik</div>
-            </div>
-            <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
-              <div class="font-extrabold">Predikat C (55 – 69)</div>
-              <div class="text-[11px]">Cukup</div>
-            </div>
-            <div class="p-2.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-900">
-              <div class="font-extrabold">Predikat D (40 – 54)</div>
-              <div class="text-[11px]">Kurang</div>
-            </div>
-            <div class="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900">
-              <div class="font-extrabold">Predikat E (0 – 39)</div>
-              <div class="text-[11px]">Sangat Kurang</div>
-            </div>
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 mb-6 text-xs">
+            <div class="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900"><div class="font-extrabold">Predikat A (85–100)</div><div class="text-[11px]">Sangat Baik</div></div>
+            <div class="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900"><div class="font-extrabold">Predikat B (70–84)</div><div class="text-[11px]">Baik</div></div>
+            <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900"><div class="font-extrabold">Predikat C (55–69)</div><div class="text-[11px]">Cukup</div></div>
+            <div class="p-2.5 rounded-xl bg-orange-50 border border-orange-200 text-orange-900"><div class="font-extrabold">Predikat D (40–54)</div><div class="text-[11px]">Kurang</div></div>
+            <div class="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900"><div class="font-extrabold">Predikat E (0–39)</div><div class="text-[11px]">Sangat Kurang</div></div>
           </div>
 
-          <!-- Diagram Batang Nilai Tugas & Diagram Batang Nilai Latihan -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-7">
+          <!-- Diagram Batang Rapih -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div class="p-4 rounded-2xl border border-slate-200 bg-white">
-              <h4 class="text-xs md:text-sm font-extrabold text-slate-900 mb-2 flex items-center gap-2">
-                <i class="fa-solid fa-chart-column text-emerald-600"></i>
-                <span>Diagram Batang Nilai Tugas</span>
-              </h4>
-              <div class="relative h-72 w-full">
-                <canvas id="chart-rekap-tugas"></canvas>
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <h4 class="text-xs md:text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                  <i class="fa-solid fa-chart-column text-emerald-600"></i>
+                  <span>Diagram Batang Nilai Tugas</span>
+                </h4>
+                <div class="inline-flex rounded-lg bg-slate-100 p-0.5 text-[10px] font-bold">
+                  <button type="button" onclick="window.setChartViewMode('tugas', 'FOLDER')" class="px-2 py-1 rounded-md ${modeTugas === 'FOLDER' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}">Per Tugas</button>
+                  <button type="button" onclick="window.setChartViewMode('tugas', 'SISWA')" class="px-2 py-1 rounded-md ${modeTugas === 'SISWA' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}">Per Siswa</button>
+                </div>
+              </div>
+              <div class="max-h-80 overflow-y-auto pr-1">
+                <div class="relative w-full" style="height: 260px;">
+                  <canvas id="chart-rekap-tugas"></canvas>
+                </div>
               </div>
             </div>
+
             <div class="p-4 rounded-2xl border border-slate-200 bg-white">
-              <h4 class="text-xs md:text-sm font-extrabold text-slate-900 mb-2 flex items-center gap-2">
-                <i class="fa-solid fa-chart-bar text-indigo-600"></i>
-                <span>Diagram Batang Nilai Latihan Soal Semester 1</span>
-              </h4>
-              <div class="relative h-72 w-full">
-                <canvas id="chart-rekap-latihan"></canvas>
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <h4 class="text-xs md:text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                  <i class="fa-solid fa-chart-bar text-indigo-600"></i>
+                  <span>Diagram Batang Nilai Latihan Soal</span>
+                </h4>
+                <div class="inline-flex rounded-lg bg-slate-100 p-0.5 text-[10px] font-bold">
+                  <button type="button" onclick="window.setChartViewMode('latihan', 'FOLDER')" class="px-2 py-1 rounded-md ${modeLatihan === 'FOLDER' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}">Per Mapel/Paket</button>
+                  <button type="button" onclick="window.setChartViewMode('latihan', 'SISWA')" class="px-2 py-1 rounded-md ${modeLatihan === 'SISWA' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}">Per Siswa</button>
+                </div>
+              </div>
+              <div class="max-h-80 overflow-y-auto pr-1">
+                <div class="relative w-full" style="height: 260px;">
+                  <canvas id="chart-rekap-latihan"></canvas>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Tabel 1: Rekap Nilai Latihan Soal Semester 1 -->
-          <h4 class="text-sm font-extrabold text-slate-900 mb-3 flex items-center gap-2">
-            <i class="fa-solid fa-laptop-code text-indigo-600"></i>
-            <span>A. Rekap Nilai Latihan Soal Semester 1 (${filteredExams.length} Data)</span>
-          </h4>
-          <div class="overflow-x-auto mb-8">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50">
-                  <th class="py-3 px-3">Nama Siswa</th>
-                  <th class="py-3 px-3">Kelas</th>
-                  <th class="py-3 px-3">Mata Pelajaran & Paket</th>
-                  <th class="py-3 px-3">Benar / Soal</th>
-                  <th class="py-3 px-3">Skor Nilai</th>
-                  <th class="py-3 px-3">Predikat</th>
-                  <th class="py-3 px-3">Waktu Selesai</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-200/70 text-xs">
-                ${filteredExams.map(ex => {
-                  const pred = calculatePredicate(ex.score);
+          <!-- BAGIAN A: REKAP NILAI LATIHAN SOAL PER FOLDER MATA PELAJARAN & PAKET -->
+          <div class="mb-8">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <i class="fa-solid fa-folder-tree text-indigo-600"></i>
+                <span>A. Rekap Nilai Latihan Soal ${activeExamFolder ? `— ${escapeHtml(activeExamFolder.subjectName)} (Paket ${activeExamFolder.packNumber})` : `(${examFolders.length} Folder Mapel & Paket)`}</span>
+              </h4>
+              ${activeExamFolder ? `
+                <button type="button" onclick="window.selectRekapExamFolder(null)" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
+                  <i class="fa-solid fa-arrow-left mr-1"></i> Kembali ke Folder Mapel & Paket
+                </button>
+              ` : ''}
+            </div>
+
+            ${examFolders.length === 0 ? `
+              <div class="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-400">Belum ada data hasil Latihan Soal.</div>
+            ` : !activeExamFolder ? `
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                ${examFolders.map(fld => {
+                  const avg = Math.round(fld.items.reduce((a, b) => a + (Number(b.score) || 0), 0) / fld.items.length);
+                  const pred = calculatePredicate(avg);
                   return `
-                    <tr class="hover:bg-slate-50">
-                      <td class="py-3 px-3 font-bold text-slate-900">${escapeHtml(ex.studentName)}</td>
-                      <td class="py-3 px-3 font-semibold text-slate-600">${escapeHtml(ex.className)}</td>
-                      <td class="py-3 px-3">
-                        <span class="font-bold text-indigo-700">${escapeHtml(ex.subjectName)}</span>
-                        <span class="ml-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">Paket ${ex.packNumber}</span>
-                      </td>
-                      <td class="py-3 px-3 font-mono font-semibold text-emerald-700">${ex.correctCount} / ${ex.totalQuestions}</td>
-                      <td class="py-3 px-3 font-extrabold text-base text-slate-900">${ex.score}</td>
-                      <td class="py-3 px-3">
-                        <span class="px-2.5 py-1 rounded-lg border font-bold ${pred.badgeClass}">${pred.grade} — ${pred.label}</span>
-                      </td>
-                      <td class="py-3 px-3 text-slate-500">${escapeHtml(ex.completedAt)}</td>
-                    </tr>
+                    <div onclick="window.selectRekapExamFolder('${escapeHtml(fld.key)}')" class="p-4 rounded-2xl border-2 border-slate-200 hover:border-indigo-400 bg-slate-50/70 hover:bg-white cursor-pointer transition group">
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg group-hover:scale-105 transition">
+                          <i class="fa-solid fa-folder"></i>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-[11px] font-extrabold">Paket ${fld.packNumber}</span>
+                      </div>
+                      <h5 class="text-sm font-extrabold text-slate-900 group-hover:text-indigo-600">${escapeHtml(fld.subjectName)}</h5>
+                      <div class="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                        <span class="text-slate-600 font-semibold">${fld.items.length} Pengerjaan</span>
+                        <span class="px-2 py-0.5 rounded-md border font-bold text-[11px] ${pred.badgeClass}">Rata-rata: ${avg} (${pred.grade})</span>
+                      </div>
+                    </div>
                   `;
                 }).join('')}
-              </tbody>
-            </table>
+              </div>
+            ` : `
+              <div class="overflow-x-auto rounded-2xl border border-slate-200">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50">
+                      <th class="py-3 px-3">Nama Siswa</th>
+                      <th class="py-3 px-3">Kelas</th>
+                      <th class="py-3 px-3">Benar / Soal</th>
+                      <th class="py-3 px-3">Skor Nilai</th>
+                      <th class="py-3 px-3">Predikat</th>
+                      <th class="py-3 px-3">Waktu Selesai</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-200/70 text-xs bg-white">
+                    ${activeExamFolder.items.map(ex => {
+                      const pred = calculatePredicate(ex.score);
+                      return `
+                        <tr class="hover:bg-slate-50">
+                          <td class="py-3 px-3 font-bold text-slate-900">${escapeHtml(ex.studentName)}</td>
+                          <td class="py-3 px-3 font-semibold text-slate-600">${escapeHtml(ex.className)}</td>
+                          <td class="py-3 px-3 font-mono font-semibold text-emerald-700">${ex.correctCount} / ${ex.totalQuestions}</td>
+                          <td class="py-3 px-3 font-extrabold text-base text-slate-900">${ex.score}</td>
+                          <td class="py-3 px-3"><span class="px-2.5 py-1 rounded-lg border font-bold ${pred.badgeClass}">${pred.grade} — ${pred.label}</span></td>
+                          <td class="py-3 px-3 text-slate-500">${escapeHtml(ex.completedAt)}</td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
           </div>
 
-          <!-- Tabel 2: Rekap Nilai Tugas Guru -->
-          <h4 class="text-sm font-extrabold text-slate-900 mb-3 flex items-center gap-2">
-            <i class="fa-solid fa-book-open text-emerald-600"></i>
-            <span>B. Rekap Nilai Tugas Mandiri (${filteredTasks.length} Data)</span>
-          </h4>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50">
-                  <th class="py-3 px-3">Nama Siswa</th>
-                  <th class="py-3 px-3">Kelas</th>
-                  <th class="py-3 px-3">Judul Tugas & Mapel</th>
-                  <th class="py-3 px-3">Nilai Tugas</th>
-                  <th class="py-3 px-3">Predikat</th>
-                  <th class="py-3 px-3">Feedback Guru</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-200/70 text-xs">
-                ${filteredTasks.map(tk => {
-                  const hasScore = tk.score !== null && tk.score !== undefined;
-                  const pred = hasScore ? calculatePredicate(tk.score) : null;
+          <!-- BAGIAN B: REKAP NILAI TUGAS MANDIRI PER FOLDER JUDUL TUGAS -->
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <i class="fa-solid fa-folder-open text-emerald-600"></i>
+                <span>B. Rekap Nilai Tugas Mandiri ${activeTaskFolder ? `— ${escapeHtml(activeTaskFolder.title)}` : `(${taskFolders.length} Folder Judul Tugas)`}</span>
+              </h4>
+              ${activeTaskFolder ? `
+                <button type="button" onclick="window.selectRekapTaskFolder(null)" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
+                  <i class="fa-solid fa-arrow-left mr-1"></i> Kembali ke Folder Tugas
+                </button>
+              ` : ''}
+            </div>
+
+            ${taskFolders.length === 0 ? `
+              <div class="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-400">Belum ada data pengumpulan tugas.</div>
+            ` : !activeTaskFolder ? `
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                ${taskFolders.map(fld => {
+                  const safeAttr = escapeHtml(fld.title).replace(/'/g, '&#39;');
+                  const graded = fld.items.filter(i => i.score !== null && i.score !== undefined);
+                  const avg = graded.length > 0 ? Math.round(graded.reduce((a, b) => a + Number(b.score), 0) / graded.length) : null;
                   return `
-                    <tr class="hover:bg-slate-50">
-                      <td class="py-3 px-3 font-bold text-slate-900">${escapeHtml(tk.studentName)}</td>
-                      <td class="py-3 px-3 font-semibold text-slate-600">${escapeHtml(tk.className)}</td>
-                      <td class="py-3 px-3">
-                        <div class="font-bold text-slate-900">${escapeHtml(tk.assignmentTitle)}</div>
-                        <div class="text-[11px] text-indigo-600 font-semibold">${escapeHtml(tk.subjectManual)}</div>
-                      </td>
-                      <td class="py-3 px-3 font-extrabold text-base text-slate-900">${hasScore ? tk.score : '-'}</td>
-                      <td class="py-3 px-3">
-                        ${pred
-                          ? `<span class="px-2.5 py-1 rounded-lg border font-bold ${pred.badgeClass}">${pred.grade} (${pred.label})</span>`
-                          : `<span class="text-amber-600 font-bold">Belum Dinilai</span>`
-                        }
-                      </td>
-                      <td class="py-3 px-3 text-slate-600">${escapeHtml(tk.teacherFeedback || '-')}</td>
-                    </tr>
+                    <div onclick="window.selectRekapTaskFolder('${safeAttr}')" class="p-4 rounded-2xl border-2 border-slate-200 hover:border-emerald-400 bg-slate-50/70 hover:bg-white cursor-pointer transition group">
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg group-hover:scale-105 transition">
+                          <i class="fa-solid fa-folder"></i>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 text-[11px] font-bold">${escapeHtml(fld.subjectManual)}</span>
+                      </div>
+                      <h5 class="text-sm font-extrabold text-slate-900 group-hover:text-emerald-700 line-clamp-2">${escapeHtml(fld.title)}</h5>
+                      <div class="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                        <span class="text-slate-600 font-semibold">${fld.items.length} Pengumpulan</span>
+                        <span class="font-bold text-emerald-700">${avg !== null ? `Rata-rata: ${avg}` : 'Belum dinilai'}</span>
+                      </div>
+                    </div>
                   `;
                 }).join('')}
-              </tbody>
-            </table>
+              </div>
+            ` : `
+              <div class="overflow-x-auto rounded-2xl border border-slate-200">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50">
+                      <th class="py-3 px-3">Nama Siswa</th>
+                      <th class="py-3 px-3">Kelas</th>
+                      <th class="py-3 px-3">Nilai Tugas</th>
+                      <th class="py-3 px-3">Predikat</th>
+                      <th class="py-3 px-3">Feedback Guru</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-200/70 text-xs bg-white">
+                    ${activeTaskFolder.items.map(tk => {
+                      const hasScore = tk.score !== null && tk.score !== undefined;
+                      const pred = hasScore ? calculatePredicate(tk.score) : null;
+                      return `
+                        <tr class="hover:bg-slate-50">
+                          <td class="py-3 px-3 font-bold text-slate-900">${escapeHtml(tk.studentName)}</td>
+                          <td class="py-3 px-3 font-semibold text-slate-600">${escapeHtml(tk.className)}</td>
+                          <td class="py-3 px-3 font-extrabold text-base text-slate-900">${hasScore ? tk.score : '-'}</td>
+                          <td class="py-3 px-3">${pred ? `<span class="px-2.5 py-1 rounded-lg border font-bold ${pred.badgeClass}">${pred.grade} (${pred.label})</span>` : `<span class="text-amber-600 font-bold">Belum Dinilai</span>`}</td>
+                          <td class="py-3 px-3 text-slate-600">${escapeHtml(tk.teacherFeedback || '-')}</td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
           </div>
         </div>
       `;
@@ -4170,7 +4402,7 @@
       ];
       (appState.db.examResults || []).forEach(ex => {
         const p = calculatePredicate(ex.score);
-        rows.push(['Latihan Soal Semester 1', ex.studentName, ex.className, ex.subjectName, `Paket ${ex.packNumber}`, ex.score, p.grade, p.label, ex.completedAt]);
+        rows.push(['Latihan Soal', ex.studentName, ex.className, ex.subjectName, `Paket ${ex.packNumber}`, ex.score, p.grade, p.label, ex.completedAt]);
       });
       (appState.db.submissions || []).forEach(sub => {
         const p = sub.score !== null && sub.score !== undefined ? calculatePredicate(sub.score) : { grade: '-', label: 'Belum Dinilai' };
@@ -4188,6 +4420,315 @@
       a.remove();
       window.showToast('File CSV Rekap Nilai berhasil diunduh!', 'success');
     };
+
+    // ----------------------------------------------------------------------------
+    // MENU YOUTUBE (ADMIN & SISWA) — TAMBAH, EDIT, HAPUS, & TONTON VIDEO YOUTUBE
+    // ----------------------------------------------------------------------------
+    function extractYoutubeVideoId(url) {
+      if (!url || typeof url !== 'string') return '';
+      const clean = url.trim();
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+        /[?&]v=([a-zA-Z0-9_-]{11})/
+      ];
+      for (const p of patterns) {
+        const m = clean.match(p);
+        if (m && m[1]) return m[1];
+      }
+      return '';
+    }
+
+    function getYoutubeThumbnail(videoObj) {
+      if (videoObj && videoObj.thumbnailUrl && videoObj.thumbnailUrl.trim()) {
+        return videoObj.thumbnailUrl.trim();
+      }
+      const vid = extractYoutubeVideoId(videoObj && videoObj.youtubeUrl);
+      if (vid) return `https://img.youtube.com/vi/${vid}/hqdefault.jpg`;
+      return '';
+    }
+
+    window.openYoutubePlayerModal = function(videoId) {
+      const vidObj = (appState.db.youtubeVideos || []).find(v => v.id === videoId);
+      if (!vidObj) return;
+      const ytId = extractYoutubeVideoId(vidObj.youtubeUrl);
+      const embedHtml = ytId
+        ? `<div class="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 shadow-lg">
+             <iframe src="https://www.youtube.com/embed/${escapeHtml(ytId)}?rel=0" title="${escapeHtml(vidObj.title)}" class="w-full h-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+           </div>`
+        : `<div class="p-6 rounded-2xl bg-slate-100 text-center text-xs text-slate-600">
+             Tautan video tidak dapat disematkan langsung. Silakan klik tombol buka di YouTube di bawah.
+           </div>`;
+
+      window.openGlobalModal(vidObj.title, `
+        <div class="space-y-4">
+          ${embedHtml}
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <span class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold"><i class="fa-solid fa-circle-play mr-1"></i>YouTube Pembelajaran</span>
+              <a href="${escapeHtml(vidObj.youtubeUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-indigo-600 hover:underline">
+                <i class="fa-solid fa-up-right-from-square mr-1"></i>Buka di YouTube
+              </a>
+            </div>
+            <h4 class="text-base font-extrabold text-slate-900">${escapeHtml(vidObj.title)}</h4>
+            <p class="text-xs text-slate-600 mt-1.5 whitespace-pre-line leading-relaxed">${escapeHtml(vidObj.description || '-')}</p>
+          </div>
+        </div>
+      `);
+    };
+
+    function renderAdminYoutube(container) {
+      const videos = appState.db.youtubeVideos || [];
+      const classes = appState.db.classes || [];
+
+      container.innerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- Form Tambah Video YouTube -->
+          <div class="lg:col-span-5">
+            <div class="bento-card p-6">
+              <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2 mb-1">
+                <i class="fa-solid fa-circle-play text-rose-600"></i>
+                <span>Tambah Video YouTube</span>
+              </h3>
+              <p class="text-xs text-slate-500 mb-4">Tambahkan video pembelajaran YouTube lengkap dengan thumbnail, judul, dan deskripsi untuk ditonton siswa.</p>
+
+              <form onsubmit="window.handleAddYoutubeVideo(event)" class="space-y-3.5">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Judul Video <span class="text-rose-500">*</span></label>
+                  <input type="text" id="yt-title" required placeholder="Contoh: Penjelasan Siklus Air & Ekosistem" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm outline-none focus:border-indigo-600" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Link YouTube <span class="text-rose-500">*</span></label>
+                  <input type="url" id="yt-url" required placeholder="https://www.youtube.com/watch?v=... atau https://youtu.be/..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm outline-none focus:border-indigo-600" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Link Thumbnail (Opsional — Otomatis dari YouTube jika kosong)</label>
+                  <input type="url" id="yt-thumb" placeholder="https://img.youtube.com/vi/.../hqdefault.jpg" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs outline-none focus:border-indigo-600" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Target Kelas</label>
+                  <select id="yt-class" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white outline-none focus:border-indigo-600">
+                    <option value="Semua Kelas">Semua Kelas</option>
+                    ${classes.map(c => `<option value="${escapeHtml(c.className)}">${escapeHtml(c.className)}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Deskripsi Video <span class="text-rose-500">*</span></label>
+                  <textarea id="yt-desc" rows="3" required placeholder="Tuliskan ringkasan atau instruksi menonton video..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm outline-none focus:border-indigo-600"></textarea>
+                </div>
+                <button type="submit" class="w-full py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-plus"></i>
+                  <span>Simpan & Publikasikan Video</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Daftar Video YouTube Admin -->
+          <div class="lg:col-span-7">
+            <div class="bento-card p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-extrabold text-slate-900">Daftar Video YouTube (${videos.length})</h3>
+                <span class="text-xs font-semibold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg">Sinkron ke Portal Siswa</span>
+              </div>
+
+              ${videos.length === 0 ? `
+                <div class="p-10 rounded-2xl bg-slate-50 border border-slate-200 text-center text-slate-400">
+                  <i class="fa-solid fa-film text-3xl mb-2"></i>
+                  <p class="text-sm font-semibold text-slate-600">Belum ada video YouTube ditambahkan.</p>
+                  <p class="text-xs mt-1">Gunakan formulir di sebelah kiri untuk menambahkan video pembelajaran.</p>
+                </div>
+              ` : `
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  ${videos.map(v => {
+                    const thumb = getYoutubeThumbnail(v);
+                    return `
+                      <div class="rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col justify-between shadow-sm">
+                        <div>
+                          <div class="relative aspect-video bg-slate-900 overflow-hidden cursor-pointer group" onclick="window.openYoutubePlayerModal('${v.id}')">
+                            ${thumb
+                              ? `<img src="${escapeHtml(thumb)}" alt="${escapeHtml(v.title)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />`
+                              : `<div class="w-full h-full flex items-center justify-center text-white/60"><i class="fa-solid fa-circle-play text-4xl"></i></div>`
+                            }
+                            <div class="absolute inset-0 bg-slate-900/25 flex items-center justify-center group-hover:bg-slate-900/40 transition">
+                              <span class="w-11 h-11 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-lg"><i class="fa-solid fa-play ml-0.5"></i></span>
+                            </div>
+                            <span class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/75 text-white text-[10px] font-bold">${escapeHtml(v.className || 'Semua Kelas')}</span>
+                          </div>
+                          <div class="p-4">
+                            <h4 class="text-sm font-extrabold text-slate-900 line-clamp-2">${escapeHtml(v.title)}</h4>
+                            <p class="text-xs text-slate-500 mt-1 line-clamp-2">${escapeHtml(v.description || '-')}</p>
+                          </div>
+                        </div>
+                        <div class="px-4 pb-3 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <button type="button" onclick="window.openYoutubePlayerModal('${v.id}')" class="text-xs font-bold text-indigo-600 hover:underline">
+                            <i class="fa-solid fa-play mr-1"></i>Tonton
+                          </button>
+                          <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="window.openEditYoutubeModal('${v.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-xs font-bold">
+                              <i class="fa-solid fa-pen"></i> Edit
+                            </button>
+                            <button type="button" onclick="window.handleDeleteYoutubeVideo('${v.id}')" class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold">
+                              <i class="fa-solid fa-trash"></i>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    window.handleAddYoutubeVideo = function(e) {
+      e.preventDefault();
+      const title = document.getElementById('yt-title').value.trim();
+      const youtubeUrl = document.getElementById('yt-url').value.trim();
+      const thumbnailUrl = document.getElementById('yt-thumb').value.trim();
+      const className = document.getElementById('yt-class').value;
+      const description = document.getElementById('yt-desc').value.trim();
+      if (!title || !youtubeUrl) return;
+
+      if (!Array.isArray(appState.db.youtubeVideos)) appState.db.youtubeVideos = [];
+      const newVid = {
+        id: 'YT-' + Date.now(),
+        title,
+        youtubeUrl,
+        thumbnailUrl,
+        className,
+        description,
+        createdAt: new Date().toISOString().slice(0, 10)
+      };
+      appState.db.youtubeVideos.unshift(newVid);
+      persistDatabase('youtube_videos', newVid.id, newVid, 'SET');
+      window.showToast(`Video YouTube "${title}" berhasil ditambahkan!`, 'success');
+      renderActivePage();
+    };
+
+    window.openEditYoutubeModal = function(vidId) {
+      const v = (appState.db.youtubeVideos || []).find(item => item.id === vidId);
+      if (!v) return;
+      const classes = appState.db.classes || [];
+      window.openGlobalModal(`Edit Video YouTube — ${v.title}`, `
+        <form onsubmit="window.handleSaveEditYoutube(event, '${v.id}')" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Judul Video</label>
+            <input type="text" id="edit-yt-title" value="${escapeHtml(v.title)}" required class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Link YouTube</label>
+            <input type="url" id="edit-yt-url" value="${escapeHtml(v.youtubeUrl)}" required class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Link Thumbnail (Opsional)</label>
+            <input type="url" id="edit-yt-thumb" value="${escapeHtml(v.thumbnailUrl || '')}" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Target Kelas</label>
+            <select id="edit-yt-class" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white">
+              <option value="Semua Kelas" ${(v.className || 'Semua Kelas') === 'Semua Kelas' ? 'selected' : ''}>Semua Kelas</option>
+              ${classes.map(c => `<option value="${escapeHtml(c.className)}" ${c.className === v.className ? 'selected' : ''}>${escapeHtml(c.className)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Deskripsi</label>
+            <textarea id="edit-yt-desc" rows="3" required class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">${escapeHtml(v.description || '')}</textarea>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" onclick="window.closeGlobalModal()" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">Batal</button>
+            <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">Simpan Perubahan</button>
+          </div>
+        </form>
+      `);
+    };
+
+    window.handleSaveEditYoutube = function(e, vidId) {
+      e.preventDefault();
+      const v = (appState.db.youtubeVideos || []).find(item => item.id === vidId);
+      if (!v) return;
+      v.title = document.getElementById('edit-yt-title').value.trim();
+      v.youtubeUrl = document.getElementById('edit-yt-url').value.trim();
+      v.thumbnailUrl = document.getElementById('edit-yt-thumb').value.trim();
+      v.className = document.getElementById('edit-yt-class').value;
+      v.description = document.getElementById('edit-yt-desc').value.trim();
+      persistDatabase('youtube_videos', v.id, v, 'SET');
+      window.closeGlobalModal();
+      window.showToast('Video YouTube berhasil diperbarui!', 'success');
+      renderActivePage();
+    };
+
+    window.handleDeleteYoutubeVideo = function(vidId) {
+      appState.db.youtubeVideos = (appState.db.youtubeVideos || []).filter(item => item.id !== vidId);
+      persistDatabase('youtube_videos', vidId, null, 'DELETE');
+      window.showToast('Video YouTube berhasil dihapus.', 'info');
+      renderActivePage();
+    };
+
+    function renderSiswaYoutube(container) {
+      const std = appState.currentUser;
+      const videos = (appState.db.youtubeVideos || []).filter(
+        v => !v.className || isSameClass(v.className, std.className)
+      );
+
+      container.innerHTML = `
+        <div class="bento-card p-6 mb-6 bg-gradient-to-r from-rose-600 via-rose-700 to-slate-900 text-white">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-bold text-amber-300 mb-2">
+                <i class="fa-solid fa-circle-play"></i> VIDEO PEMBELAJARAN YOUTUBE
+              </span>
+              <h2 class="text-xl md:text-2xl font-extrabold">Galeri Video YouTube (${escapeHtml(std.className)})</h2>
+              <p class="text-xs text-rose-100 mt-1">Klik salah satu video di bawah ini untuk menonton langsung di dalam aplikasi.</p>
+            </div>
+            <span class="px-3.5 py-2 rounded-xl bg-white/15 text-xs font-extrabold self-start sm:self-center">${videos.length} Video Tersedia</span>
+          </div>
+        </div>
+
+        ${videos.length === 0 ? `
+          <div class="bento-card p-10 text-center text-slate-400">
+            <i class="fa-solid fa-video-slash text-4xl mb-3"></i>
+            <p class="text-sm font-bold text-slate-700">Belum Ada Video YouTube untuk Kelas Anda</p>
+            <p class="text-xs text-slate-500 mt-1">Video pembelajaran yang ditambahkan oleh Bapak/Ibu Guru akan muncul otomatis di sini.</p>
+          </div>
+        ` : `
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            ${videos.map(v => {
+              const thumb = getYoutubeThumbnail(v);
+              return `
+                <div class="bento-card overflow-hidden flex flex-col justify-between group">
+                  <div>
+                    <div class="relative aspect-video bg-slate-900 overflow-hidden cursor-pointer" onclick="window.openYoutubePlayerModal('${v.id}')">
+                      ${thumb
+                        ? `<img src="${escapeHtml(thumb)}" alt="${escapeHtml(v.title)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />`
+                        : `<div class="w-full h-full flex items-center justify-center text-white/60"><i class="fa-solid fa-circle-play text-4xl"></i></div>`
+                      }
+                      <div class="absolute inset-0 bg-slate-900/20 group-hover:bg-slate-900/40 flex items-center justify-center transition">
+                        <span class="w-12 h-12 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-xl group-hover:scale-110 transition">
+                          <i class="fa-solid fa-play ml-0.5 text-base"></i>
+                        </span>
+                      </div>
+                    </div>
+                    <div class="p-5">
+                      <h3 class="text-sm md:text-base font-extrabold text-slate-900 group-hover:text-rose-600 transition line-clamp-2">${escapeHtml(v.title)}</h3>
+                      <p class="text-xs text-slate-600 mt-1.5 line-clamp-3 leading-relaxed">${escapeHtml(v.description || '-')}</p>
+                    </div>
+                  </div>
+                  <div class="px-5 pb-4 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="window.openYoutubePlayerModal('${v.id}')" class="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-sm transition flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-play"></i>
+                      <span>Tonton Video Sekarang</span>
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
+      `;
+    }
 
     // ----------------------------------------------------------------------------
     // MENU ADMIN 7: PENGATURAN (PROFIL SEKOLAH & GANTI PASSWORD ADMIN)
@@ -4360,7 +4901,7 @@
             <div class="flex flex-wrap gap-2.5">
               <button type="button" onclick="window.navigateToMenu('siswa_cbt')" class="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs shadow-lg transition flex items-center gap-2">
                 <i class="fa-solid fa-play"></i>
-                <span>Mulai Latihan Soal Semester 1</span>
+                <span>Mulai Latihan Soal</span>
               </button>
               <button type="button" onclick="window.navigateToMenu('siswa_daftar_tugas')" class="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 transition flex items-center gap-2">
                 <i class="fa-solid fa-book-bookmark"></i>
@@ -4402,7 +4943,7 @@
         <!-- Kartu Ringkasan Bento -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div class="bento-card p-5">
-            <p class="text-xs font-semibold text-slate-500">Mata Pelajaran Semester 1</p>
+            <p class="text-xs font-semibold text-slate-500">Mata Pelajaran</p>
             <h3 class="text-2xl font-extrabold text-slate-900 mt-1">9 Mapel</h3>
             <p class="text-[11px] text-indigo-600 font-semibold mt-1">27 Paket Soal Siap Dikerjakan</p>
           </div>
@@ -4425,11 +4966,11 @@
           </div>
         </div>
 
-        <!-- Akses Cepat 9 Mata Pelajaran Latihan Soal Semester 1 -->
+        <!-- Akses Cepat 9 Mata Pelajaran Latihan Soal -->
         <div class="bento-card p-6">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h3 class="text-base font-extrabold text-slate-900">Akses Cepat Latihan Soal Semester 1 (9 Mata Pelajaran)</h3>
+              <h3 class="text-base font-extrabold text-slate-900">Akses Cepat Latihan Soal (9 Mata Pelajaran)</h3>
               <p class="text-xs text-slate-500">Klik mata pelajaran untuk memilih Paket 1, Paket 2, atau Paket 3 (masing-masing 50 soal).</p>
             </div>
           </div>
@@ -4686,7 +5227,7 @@
     };
 
     // ----------------------------------------------------------------------------
-    // MENU SISWA 3: LATIHAN SOAL SEMESTER 1 (ALUR LENGKAP SESUAI INSTRUKSI)
+    // MENU SISWA 3: LATIHAN SOAL (ALUR LENGKAP SESUAI INSTRUKSI)
     //   1. Klik Mata Pelajaran (9 Mapel)
     //   2. Muncul Paket Mata Pelajaran (Paket 1, Paket 2, Paket 3)
     //   3. Klik Mulai -> Muncul Aturan Pengerjaan -> Klik Lanjutkan
@@ -4702,7 +5243,7 @@
       if (sess.step === 'SELECT_SUBJECT') {
         container.innerHTML = `
           <div class="bento-card p-6 mb-6">
-            <h2 class="text-lg md:text-xl font-extrabold text-slate-900">Pilih Mata Pelajaran — Latihan Soal Semester 1</h2>
+            <h2 class="text-lg md:text-xl font-extrabold text-slate-900">Pilih Mata Pelajaran — Latihan Soal</h2>
             <p class="text-xs text-slate-500 mt-1">Klik salah satu dari 9 mata pelajaran di bawah ini untuk menampilkan pilihan paket soal.</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -4746,7 +5287,7 @@
               </div>
               <div>
                 <h2 class="text-lg md:text-xl font-extrabold text-slate-900">Pilih Paket Soal — ${escapeHtml(subObj.name)}</h2>
-                <p class="text-xs text-slate-500">Pilih salah satu paket soal Semester 1 di bawah ini, lalu klik tombol <strong>Mulai</strong>.</p>
+                <p class="text-xs text-slate-500">Pilih salah satu paket soal di bawah ini, lalu klik tombol <strong>Mulai</strong>.</p>
               </div>
             </div>
           </div>
@@ -4759,38 +5300,46 @@
               const mcmkC = packQuestions.filter(q => q.type === 'MCMK').length;
               const bsC = packQuestions.filter(q => q.type === 'BS').length;
               const isPackActive = meta.isActive;
+              const usedAttempts = getStudentPackAttemptCount(appState.currentUser.id, subObj.code, pNum);
+              const isAttemptLimitReached = usedAttempts >= 2;
+              const canStart = isPackActive && !isAttemptLimitReached;
               return `
                 <div class="bento-card p-6 flex flex-col justify-between border-2 ${
-                  isPackActive ? 'hover:border-indigo-500' : 'opacity-75 bg-slate-50 border-slate-200'
+                  canStart ? 'hover:border-indigo-500' : 'opacity-80 bg-slate-50 border-slate-200'
                 } transition">
                   <div>
-                    <div class="flex items-center justify-between mb-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                       <span class="px-3 py-1 rounded-full ${meta.createdByAi ? 'bg-amber-100 text-amber-800' : 'bg-indigo-50 text-indigo-700'} font-extrabold text-xs">
                         ${meta.createdByAi ? '<i class="fa-solid fa-robot mr-1"></i>' : ''}${escapeHtml(meta.title || ('PAKET ' + pNum))}
                       </span>
                       <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
-                        isPackActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        !isPackActive ? 'bg-rose-100 text-rose-800' : isAttemptLimitReached ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                       }">
-                        <i class="fa-solid ${isPackActive ? 'fa-circle-check' : 'fa-lock'} mr-1"></i>${isPackActive ? 'Aktif' : 'Nonaktif'}
+                        ${!isPackActive ? '<i class="fa-solid fa-lock mr-1"></i>Nonaktif' : `Percobaan: ${usedAttempts} / 2`}
                       </span>
                     </div>
                     <h3 class="text-base font-extrabold text-slate-900">${escapeHtml(subObj.name)} — ${escapeHtml(meta.title || ('Paket ' + pNum))}</h3>
-                    <p class="text-[11px] font-semibold text-slate-500 mt-0.5">Total: ${packQuestions.length} Butir Soal</p>
+                    <p class="text-[11px] font-semibold text-slate-500 mt-0.5">Total: ${packQuestions.length} Butir Soal • Maksimal 2× Percobaan</p>
                     <ul class="mt-3 space-y-1.5 text-xs text-slate-600">
                       <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-blue-600"></i> ${pgC} Soal Pilihan Ganda (PG)</li>
                       <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-purple-600"></i> ${mcmkC} Soal Pilihan Ganda Kompleks (MCMK)</li>
                       <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-600"></i> ${bsC} Soal Benar / Salah</li>
                     </ul>
                   </div>
-                  ${isPackActive ? `
-                    <button type="button" onclick="window.studentClickMulaiPack(${pNum})" class="mt-6 w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2">
-                      <i class="fa-solid fa-play"></i>
-                      <span>Mulai ${escapeHtml(meta.title || ('Paket ' + pNum))}</span>
-                    </button>
-                  ` : `
+                  ${!isPackActive ? `
                     <button type="button" onclick="window.showToast('Paket soal ini sedang dinonaktifkan oleh Guru/Admin.', 'warning')" class="mt-6 w-full py-3 px-4 rounded-xl bg-slate-200 text-slate-500 font-extrabold text-xs cursor-not-allowed flex items-center justify-center gap-2">
                       <i class="fa-solid fa-lock"></i>
                       <span>Paket Soal Dinonaktifkan</span>
+                    </button>
+                  ` : isAttemptLimitReached ? `
+                    <button type="button" onclick="window.showToast('Batas maksimal 2 kali percobaan pada paket soal ini telah habis.', 'warning')" class="mt-6 w-full py-3 px-4 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 font-extrabold text-xs cursor-not-allowed flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-ban"></i>
+                      <span>Percobaan Habis (2 / 2)</span>
+                    </button>
+                  ` : `
+                    <button type="button" onclick="window.studentClickMulaiPack(${pNum})" class="mt-6 w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-play"></i>
+                      <span>Mulai (Percobaan ke-${usedAttempts + 1} dari 2)</span>
                     </button>
                   `}
                 </div>
@@ -4811,7 +5360,7 @@
                 <i class="fa-solid fa-clipboard-list"></i>
               </div>
               <div>
-                <h2 class="text-lg font-extrabold text-slate-900">Aturan Pengerjaan Latihan Soal Semester 1</h2>
+                <h2 class="text-lg font-extrabold text-slate-900">Aturan Pengerjaan Latihan Soal</h2>
                 <p class="text-xs text-slate-500">${escapeHtml(subObj.name)} • Paket ${sess.packNumber} (${packQuestions.length} Soal)</p>
               </div>
             </div>
@@ -4958,6 +5507,59 @@
                   </div>
                 `}
 
+                <!-- Tombol Konfirmasi khusus MCMK & Kotak Notifikasi BENAR/SALAH + Pembahasan Langsung -->
+                ${(() => {
+                  const revealedMap = sess.revealedQuestions || {};
+                  const rev = revealedMap[q.questionNumber];
+                  if (q.type === 'MCMK' && !rev) {
+                    const arr = Array.isArray(currentAns) ? currentAns : [];
+                    return `
+                      <div class="mt-4">
+                        <button type="button" onclick="window.studentConfirmMCMK(${q.questionNumber})" ${arr.length === 0 ? 'disabled' : ''} class="px-5 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center gap-2 ${
+                          arr.length > 0 ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        }">
+                          <i class="fa-solid fa-check-double"></i>
+                          <span>Cek Jawaban & Lihat Pembahasan</span>
+                        </button>
+                      </div>
+                    `;
+                  }
+                  if (rev) {
+                    const letters = ['A', 'B', 'C', 'D'];
+                    let keyText = '';
+                    if (q.type === 'PG') {
+                      keyText = `${letters[q.correctAnswer]}. ${q.options[q.correctAnswer] || ''}`;
+                    } else if (q.type === 'MCMK') {
+                      keyText = (q.correctAnswer || []).map(i => `${letters[i]}. ${q.options[i] || ''}`).join(' & ');
+                    } else {
+                      keyText = String(q.correctAnswer);
+                    }
+                    return `
+                      <div class="mt-5 p-4 md:p-5 rounded-2xl border-2 ${
+                        rev.isCorrect ? 'bg-emerald-50 border-emerald-400 text-emerald-950' : 'bg-rose-50 border-rose-400 text-rose-950'
+                      }">
+                        <div class="flex items-center gap-3 mb-2">
+                          <span class="px-3.5 py-1 rounded-xl font-extrabold text-sm tracking-wide shadow-sm ${
+                            rev.isCorrect ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                          }">
+                            <i class="fa-solid ${rev.isCorrect ? 'fa-circle-check' : 'fa-circle-xmark'} mr-1.5"></i>${rev.isCorrect ? 'BENAR' : 'SALAH'}
+                          </span>
+                          <span class="text-xs md:text-sm font-bold ${rev.isCorrect ? 'text-emerald-800' : 'text-rose-800'}">
+                            ${rev.isCorrect ? 'Hebat! Jawaban kamu tepat.' : 'Jawaban belum tepat. Perhatikan pembahasan di bawah ini.'}
+                          </span>
+                        </div>
+                        <div class="text-xs font-bold mb-1.5 ${rev.isCorrect ? 'text-emerald-800' : 'text-rose-800'}">
+                          Kunci Jawaban: <span class="underline">${escapeHtml(keyText)}</span>
+                        </div>
+                        <div class="p-3 rounded-xl bg-white/90 border border-slate-200/80 text-xs text-slate-700 leading-relaxed">
+                          <strong class="text-indigo-700"><i class="fa-solid fa-lightbulb mr-1"></i>Pembahasan:</strong> ${escapeHtml(q.explanation)}
+                        </div>
+                      </div>
+                    `;
+                  }
+                  return '';
+                })()}
+
                 <!-- Navigasi Sebelumnya / Selanjutnya -->
                 <div class="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-slate-100">
                   <button type="button" onclick="window.studentMoveQuestion(-1)" ${sess.currentIndex === 0 ? 'disabled' : ''} class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold ${sess.currentIndex === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100 text-slate-700'}">
@@ -5027,7 +5629,7 @@
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
               <div class="lg:col-span-7 space-y-2">
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-bold text-amber-300">
-                  <i class="fa-solid fa-trophy"></i> HASIL EVALUASI LATIHAN SOAL SEMESTER 1
+                  <i class="fa-solid fa-trophy"></i> HASIL EVALUASI LATIHAN SOAL
                 </span>
                 <h2 class="text-2xl md:text-3xl font-extrabold">${escapeHtml(res.subjectName)} — Paket ${res.packNumber}</h2>
                 <p class="text-xs md:text-sm text-indigo-200">
@@ -5129,13 +5731,26 @@
       renderActivePage();
     };
 
+    function getStudentPackAttemptCount(studentId, subjectCode, packNum) {
+      return (appState.db.examResults || []).filter(
+        r => r.studentId === studentId && r.subjectCode === subjectCode && Number(r.packNumber) === Number(packNum)
+      ).length;
+    }
+
     window.studentClickMulaiPack = function(packNum) {
-      const meta = getPackMetadata(appState.studentCbtSession.subjectCode, Number(packNum));
+      const pNum = Number(packNum);
+      const subCode = appState.studentCbtSession.subjectCode;
+      const meta = getPackMetadata(subCode, pNum);
       if (!meta.isActive) {
         window.showToast('Maaf, paket soal ini sedang dinonaktifkan oleh Guru/Admin.', 'warning');
         return;
       }
-      appState.studentCbtSession.packNumber = Number(packNum);
+      const attempts = getStudentPackAttemptCount(appState.currentUser.id, subCode, pNum);
+      if (attempts >= 2) {
+        window.showToast('Batas maksimal 2 kali percobaan pada paket soal ini telah tercapai.', 'error');
+        return;
+      }
+      appState.studentCbtSession.packNumber = pNum;
       appState.studentCbtSession.step = 'RULES';
       renderActivePage();
     };
@@ -5165,6 +5780,7 @@
           appState.studentCbtSession.step = 'EXAM';
           appState.studentCbtSession.currentIndex = 0;
           appState.studentCbtSession.answers = {};
+          appState.studentCbtSession.revealedQuestions = {};
           try {
             const draftKey = `${CBT_PROGRESS_PREFIX}${appState.currentUser.id}_${appState.studentCbtSession.subjectCode}_P${appState.studentCbtSession.packNumber}`;
             const savedDraft = localStorage.getItem(draftKey);
@@ -5195,13 +5811,27 @@
       } catch (e) {}
     }
 
+    function getActiveExamQuestion(qNum) {
+      const sess = appState.studentCbtSession;
+      const list = appState.db.questionPacks[`${sess.subjectCode}_P${sess.packNumber}`] || [];
+      return list.find(item => Number(item.questionNumber) === Number(qNum));
+    }
+
     window.studentAnswerPG = function(qNum, optIdx) {
+      if (!appState.studentCbtSession.revealedQuestions) appState.studentCbtSession.revealedQuestions = {};
+      if (appState.studentCbtSession.revealedQuestions[qNum]) return; // Sudah dijawab & dibahas
+      const q = getActiveExamQuestion(qNum);
       appState.studentCbtSession.answers[qNum] = Number(optIdx);
+      const isCorrect = q ? (Number(optIdx) === Number(q.correctAnswer)) : false;
+      appState.studentCbtSession.revealedQuestions[qNum] = { isCorrect };
+      window.showToast(isCorrect ? 'BENAR! Jawaban kamu tepat.' : 'SALAH! Silakan baca pembahasannya.', isCorrect ? 'success' : 'error');
       autoSaveStudentCbtDraft();
       renderActivePage();
     };
 
     window.studentToggleMCMK = function(qNum, optIdx) {
+      if (!appState.studentCbtSession.revealedQuestions) appState.studentCbtSession.revealedQuestions = {};
+      if (appState.studentCbtSession.revealedQuestions[qNum]) return;
       let arr = appState.studentCbtSession.answers[qNum];
       if (!Array.isArray(arr)) arr = [];
       if (arr.includes(optIdx)) {
@@ -5214,8 +5844,27 @@
       renderActivePage();
     };
 
+    window.studentConfirmMCMK = function(qNum) {
+      if (!appState.studentCbtSession.revealedQuestions) appState.studentCbtSession.revealedQuestions = {};
+      if (appState.studentCbtSession.revealedQuestions[qNum]) return;
+      const q = getActiveExamQuestion(qNum);
+      const uArr = Array.isArray(appState.studentCbtSession.answers[qNum]) ? [...appState.studentCbtSession.answers[qNum]].sort() : [];
+      const cArr = q && Array.isArray(q.correctAnswer) ? [...q.correctAnswer].sort() : [];
+      const isCorrect = uArr.length === cArr.length && uArr.every((v, i) => v === cArr[i]);
+      appState.studentCbtSession.revealedQuestions[qNum] = { isCorrect };
+      window.showToast(isCorrect ? 'BENAR! Jawaban MCMK kamu tepat.' : 'SALAH! Silakan baca pembahasannya.', isCorrect ? 'success' : 'error');
+      autoSaveStudentCbtDraft();
+      renderActivePage();
+    };
+
     window.studentAnswerBS = function(qNum, val) {
+      if (!appState.studentCbtSession.revealedQuestions) appState.studentCbtSession.revealedQuestions = {};
+      if (appState.studentCbtSession.revealedQuestions[qNum]) return;
+      const q = getActiveExamQuestion(qNum);
       appState.studentCbtSession.answers[qNum] = val;
+      const isCorrect = q ? (String(val) === String(q.correctAnswer)) : false;
+      appState.studentCbtSession.revealedQuestions[qNum] = { isCorrect };
+      window.showToast(isCorrect ? 'BENAR! Jawaban kamu tepat.' : 'SALAH! Silakan baca pembahasannya.', isCorrect ? 'success' : 'error');
       autoSaveStudentCbtDraft();
       renderActivePage();
     };
@@ -5411,6 +6060,7 @@
         a => isSameClass(a.className, std.className)
       );
       const selectedId = appState.selectedAssignmentForUpload || (assignments[0] && assignments[0].id) || '';
+      const pendingPhotos = appState.pendingSubmissionPhotos || [];
 
       container.innerHTML = `
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -5418,29 +6068,47 @@
             <div class="bento-card p-6">
               <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2 mb-1">
                 <i class="fa-solid fa-camera-retro text-indigo-600"></i>
-                <span>Formulir Kumpulkan Tugas (Foto / Gambar)</span>
+                <span>Formulir Kumpulkan Tugas (Bisa Lebih dari 1 Foto)</span>
               </h3>
-              <p class="text-xs text-slate-500 mb-4">Unggah foto hasil pekerjaanmu di buku tulis atau gambar karya seni untuk dinilai oleh guru.</p>
+              <p class="text-xs text-slate-500 mb-4">Kamu bisa memilih beberapa foto sekaligus atau menambahkan foto halaman demi halaman sebelum mengirim.</p>
 
               <form onsubmit="window.handleStudentSubmitTask(event)" class="space-y-4">
                 <div>
                   <label class="block text-xs font-bold text-slate-700 mb-1">Pilih Tugas yang Akan Dikumpulkan</label>
                   <select id="subm-asg-id" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white font-semibold">
-                    ${assignments.map(a => `
+                    ${assignments.length > 0 ? assignments.map(a => `
                       <option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>
                         [${escapeHtml(a.subjectManual)}] ${escapeHtml(a.title)}
                       </option>
-                    `).join('')}
+                    `).join('') : '<option value="">Belum ada tugas untuk kelas Anda</option>'}
                   </select>
                 </div>
 
-                <div class="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 space-y-2.5">
-                  <label class="block text-xs font-extrabold text-indigo-900">
-                    <i class="fa-solid fa-image mr-1"></i> Unggah Foto / Gambar Tugas Anda:
-                  </label>
-                  <input type="file" id="subm-photo-file" accept="image/*" onchange="window.previewStudentTaskPhoto(this)" class="w-full text-xs" />
-                  <input type="hidden" id="subm-photo-dataurl" value="" />
-                  <img id="subm-photo-preview" class="hidden max-h-48 rounded-xl border border-slate-200 bg-white p-1 mt-2" alt="Preview Tugas" />
+                <div class="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 space-y-3">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <label class="block text-xs font-extrabold text-indigo-900">
+                      <i class="fa-solid fa-images mr-1"></i> Unggah Foto / Gambar Tugas (${pendingPhotos.length} Foto Dipilih):
+                    </label>
+                    ${pendingPhotos.length > 0 ? `
+                      <button type="button" onclick="window.clearPendingTaskPhotos()" class="text-[11px] font-bold text-rose-600 hover:underline">Hapus Semua Foto</button>
+                    ` : ''}
+                  </div>
+                  <input type="file" id="subm-photo-file" accept="image/*" multiple onchange="window.previewStudentTaskPhotos(this)" class="w-full text-xs" />
+                  <p class="text-[11px] text-slate-500">Tips: Pilih beberapa foto sekaligus (maks. 6 foto), atau klik pilih file lagi untuk menambah foto tambahan.</p>
+
+                  ${pendingPhotos.length > 0 ? `
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+                      ${pendingPhotos.map((pUrl, idx) => `
+                        <div class="relative rounded-xl border border-slate-200 bg-white p-1 overflow-hidden">
+                          <img src="${escapeHtml(pUrl)}" alt="Foto ${idx + 1}" class="w-full h-24 object-cover rounded-lg" />
+                          <button type="button" onclick="window.removePendingTaskPhoto(${idx})" title="Hapus foto ini" class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center shadow">
+                            <i class="fa-solid fa-xmark"></i>
+                          </button>
+                          <span class="block text-[10px] text-center font-bold text-slate-500 mt-1">Foto ${idx + 1}</span>
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : ''}
                 </div>
 
                 <div>
@@ -5448,9 +6116,9 @@
                   <textarea id="subm-note" rows="3" required placeholder="Tuliskan penjelasan singkat mengenai tugas yang kamu kumpulkan..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"></textarea>
                 </div>
 
-                <button type="submit" class="w-full py-3.5 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2">
+                <button type="submit" ${assignments.length === 0 ? 'disabled' : ''} class="w-full py-3.5 px-5 rounded-xl ${assignments.length === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'} text-white font-extrabold text-xs shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2">
                   <i class="fa-solid fa-paper-plane"></i>
-                  <span>Kirim & Kumpulkan Tugas Sekarang</span>
+                  <span>Kirim & Kumpulkan Tugas (${pendingPhotos.length} Foto)</span>
                 </button>
               </form>
             </div>
@@ -5461,26 +6129,35 @@
             <div class="bento-card p-6">
               <h3 class="text-base font-extrabold text-slate-900 mb-4">Riwayat Tugas yang Sudah Kamu Kumpulkan</h3>
               <div class="space-y-3.5">
-                ${(appState.db.submissions || []).filter(s => s.studentId === std.id).map(sub => `
-                  <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/70">
-                    <div class="flex items-center justify-between mb-1.5">
-                      <span class="px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[11px] font-bold">${escapeHtml(sub.subjectManual)}</span>
-                      <span class="text-[11px] text-slate-500">${escapeHtml(sub.submittedAt)}</span>
+                ${(appState.db.submissions || []).filter(s => s.studentId === std.id).map(sub => {
+                  const photos = Array.isArray(sub.photoDataUrls) && sub.photoDataUrls.length > 0
+                    ? sub.photoDataUrls
+                    : (sub.photoDataUrl ? [sub.photoDataUrl] : []);
+                  return `
+                    <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/70">
+                      <div class="flex items-center justify-between mb-1.5">
+                        <span class="px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[11px] font-bold">${escapeHtml(sub.subjectManual)}</span>
+                        <span class="text-[11px] text-slate-500">${escapeHtml(sub.submittedAt)}</span>
+                      </div>
+                      <h4 class="text-sm font-extrabold text-slate-900">${escapeHtml(sub.assignmentTitle)}</h4>
+                      ${photos.length > 0 ? `
+                        <div class="grid ${photos.length > 1 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1'} gap-2 my-2">
+                          ${photos.map((pUrl, i) => `
+                            <img src="${escapeHtml(pUrl)}" onclick="window.openPhotoZoomModal(this.src, 'Foto ${i + 1} — ${escapeHtml(sub.assignmentTitle)}')" alt="Foto Tugas ${i + 1}" class="w-full h-28 object-cover rounded-xl border border-slate-200 bg-white p-1 cursor-pointer" />
+                          `).join('')}
+                        </div>
+                      ` : ''}
+                      <p class="text-xs text-slate-600">${escapeHtml(sub.answerNote)}</p>
+                      <div class="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
+                        <span class="font-bold text-slate-700">Status Penilaian:</span>
+                        ${sub.score !== null && sub.score !== undefined
+                          ? `<span class="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold">Nilai: ${sub.score} / ${sub.maxScore || 100}</span>`
+                          : `<span class="px-2.5 py-0.5 rounded-lg bg-amber-100 text-amber-800 font-bold">Menunggu Dinilai Guru</span>`
+                        }
+                      </div>
                     </div>
-                    <h4 class="text-sm font-extrabold text-slate-900">${escapeHtml(sub.assignmentTitle)}</h4>
-                    ${sub.photoDataUrl ? `
-                      <img src="${escapeHtml(sub.photoDataUrl)}" alt="Foto Tugas" class="max-h-36 rounded-xl border border-slate-200 bg-white p-1 my-2" />
-                    ` : ''}
-                    <p class="text-xs text-slate-600">${escapeHtml(sub.answerNote)}</p>
-                    <div class="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs">
-                      <span class="font-bold text-slate-700">Status Penilaian:</span>
-                      ${sub.score !== null && sub.score !== undefined
-                        ? `<span class="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold">Nilai: ${sub.score} / ${sub.maxScore || 100}</span>`
-                        : `<span class="px-2.5 py-0.5 rounded-lg bg-amber-100 text-amber-800 font-bold">Menunggu Dinilai Guru</span>`
-                      }
-                    </div>
-                  </div>
-                `).join('') || '<p class="text-xs text-slate-400">Belum ada tugas yang dikumpulkan.</p>'}
+                  `;
+                }).join('') || '<p class="text-xs text-slate-400">Belum ada tugas yang dikumpulkan.</p>'}
               </div>
             </div>
           </div>
@@ -5488,32 +6165,51 @@
       `;
     }
 
-    window.previewStudentTaskPhoto = function(input) {
-      const file = input.files && input.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const img = new Image();
-        img.onload = function() {
-          // Kompresi otomatis menggunakan canvas agar ukuran data URL hemat di Firestore
-          const canvas = document.createElement('canvas');
-          const maxW = 640;
-          const scale = img.width > maxW ? maxW / img.width : 1;
-          canvas.width = Math.round(img.width * scale);
-          canvas.height = Math.round(img.height * scale);
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.78);
-          document.getElementById('subm-photo-dataurl').value = compressed;
-          const prev = document.getElementById('subm-photo-preview');
-          if (prev) {
-            prev.src = compressed;
-            prev.classList.remove('hidden');
-          }
+    window.previewStudentTaskPhotos = function(input) {
+      const files = Array.from(input.files || []);
+      if (files.length === 0) return;
+      if (!Array.isArray(appState.pendingSubmissionPhotos)) appState.pendingSubmissionPhotos = [];
+      const remainingSlots = Math.max(0, 6 - appState.pendingSubmissionPhotos.length);
+      const toProcess = files.slice(0, remainingSlots);
+      if (toProcess.length === 0) {
+        window.showToast('Maksimal 6 foto per pengumpulan tugas.', 'warning');
+        return;
+      }
+
+      let processed = 0;
+      toProcess.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          const img = new Image();
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const maxW = 540;
+            const scale = img.width > maxW ? maxW / img.width : 1;
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.72);
+            appState.pendingSubmissionPhotos.push(compressed);
+            processed++;
+            if (processed === toProcess.length) {
+              renderActivePage();
+            }
+          };
+          img.src = evt.target.result;
         };
-        img.src = evt.target.result;
-      };
-      reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+      });
+    };
+
+    window.removePendingTaskPhoto = function(idx) {
+      appState.pendingSubmissionPhotos = (appState.pendingSubmissionPhotos || []).filter((_, i) => i !== idx);
+      renderActivePage();
+    };
+
+    window.clearPendingTaskPhotos = function() {
+      appState.pendingSubmissionPhotos = [];
+      renderActivePage();
     };
 
     window.handleStudentSubmitTask = function(e) {
@@ -5523,8 +6219,7 @@
       const asg = (appState.db.assignments || []).find(a => a.id === asgId);
       if (!asg) return;
 
-      const photoDataUrl = document.getElementById('subm-photo-dataurl').value ||
-        makeSvgIllustration(`Tugas: ${asg.subjectManual}`, `Dikumpulkan oleh ${std.fullName}`, '#EEF2FF', '#4F46E5');
+      const photos = [...(appState.pendingSubmissionPhotos || [])];
       const answerNote = document.getElementById('subm-note').value.trim();
 
       const newSubm = {
@@ -5536,7 +6231,8 @@
         studentUsername: std.username,
         studentName: std.fullName,
         className: std.className,
-        photoDataUrl,
+        photoDataUrls: photos,
+        photoDataUrl: photos[0] || '',
         answerNote,
         submittedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
         score: null,
@@ -5546,13 +6242,14 @@
       };
 
       appState.db.submissions.unshift(newSubm);
-      persistDatabase('submissions', newSubm.id, newSubm);
-      window.showToast('Tugas Anda berhasil dikirim beserta lampiran gambar!', 'success');
+      appState.pendingSubmissionPhotos = [];
+      persistDatabase('submissions', newSubm.id, newSubm, 'SET');
+      window.showToast(`Tugas berhasil dikirim beserta ${photos.length} foto lampiran!`, 'success');
       renderActivePage();
     };
 
     // ----------------------------------------------------------------------------
-    // MENU SISWA 6: NILAI (HASIL LATIHAN SOAL SEMESTER 1 & TUGAS)
+    // MENU SISWA 6: NILAI (HASIL LATIHAN SOAL & TUGAS)
     // ----------------------------------------------------------------------------
     function renderSiswaNilai(container) {
       const std = appState.currentUser;
@@ -5568,8 +6265,10 @@
                 <i class="fa-solid fa-chart-column text-emerald-600"></i>
                 <span>Diagram Batang Nilai Tugas Saya</span>
               </h3>
-              <div class="relative h-72 w-full">
-                <canvas id="chart-siswa-tugas"></canvas>
+              <div class="max-h-80 overflow-y-auto pr-1">
+                <div class="relative w-full" style="height: 250px;">
+                  <canvas id="chart-siswa-tugas"></canvas>
+                </div>
               </div>
             </div>
             <div class="bento-card p-6">
@@ -5577,17 +6276,19 @@
                 <i class="fa-solid fa-chart-bar text-indigo-600"></i>
                 <span>Diagram Batang Nilai Latihan Soal Saya</span>
               </h3>
-              <div class="relative h-72 w-full">
-                <canvas id="chart-siswa-latihan"></canvas>
+              <div class="max-h-80 overflow-y-auto pr-1">
+                <div class="relative w-full" style="height: 250px;">
+                  <canvas id="chart-siswa-latihan"></canvas>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Tabel Nilai Latihan Soal Semester 1 -->
+          <!-- Tabel Nilai Latihan Soal -->
           <div class="bento-card p-6">
             <h3 class="text-base font-extrabold text-slate-900 mb-1 flex items-center gap-2">
               <i class="fa-solid fa-award text-indigo-600"></i>
-              <span>Daftar Nilai Latihan Soal Semester 1 (${myExams.length})</span>
+              <span>Daftar Nilai Latihan Soal (${myExams.length})</span>
             </h3>
             <p class="text-xs text-slate-500 mb-4">Skor dihitung otomatis dengan predikat A (85–100), B (70–84), C (55–69), D (40–54), dan E (&lt;40).</p>
 
