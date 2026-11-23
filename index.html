@@ -377,10 +377,17 @@
     // ============================================================================
     // 3. UTILITAS STORAGE AMAN, MIGRASI DATA LAMA, SESSION, & FIREBASE CLOUD SYNC
     // ============================================================================
-    const STORAGE_KEY = 'LMS_PAK_MALIK_CLEAN_DB_V30';
-    const LEGACY_KEYS = ['EDUSMART_LMS_CBT_DB_V25', 'EDUSMART_LMS_CBT_DB', 'LMS_PAK_MALIK_DB'];
-    const SESSION_KEY = 'LMS_PAK_MALIK_ACTIVE_SESSION_V30';
-    const PENDING_SYNC_KEY = 'LMS_PAK_MALIK_PENDING_QUEUE_V30';
+    const STORAGE_KEY = 'LMS_PAK_MALIK_FRESH_V40';
+    const LEGACY_KEYS = [
+      'EDUSMART_LMS_CBT_DB_V25',
+      'EDUSMART_LMS_CBT_DB',
+      'LMS_PAK_MALIK_DB',
+      'LMS_PAK_MALIK_CLEAN_DB_V30',
+      'LMS_PAK_MALIK_ACTIVE_SESSION_V30',
+      'LMS_PAK_MALIK_PENDING_QUEUE_V30'
+    ];
+    const SESSION_KEY = 'LMS_PAK_MALIK_SESSION_V40';
+    const PENDING_SYNC_KEY = 'LMS_PAK_MALIK_QUEUE_V40';
     const CBT_PROGRESS_PREFIX = 'LMS_PAK_MALIK_CBT_DRAFT_';
 
     let fbApp = null;
@@ -440,42 +447,14 @@
       }
     }
 
-    // Pemulihan & Migrasi Aman dari seluruh kunci penyimpanan versi lama agar akun siswa & kelas lama TIDAK HILANG
+    // Muat penyimpanan lokal bersih & hapus sisa kunci penyimpanan versi lama agar data lama tidak muncul kembali
     function safeLoadLocal() {
       try {
-        let currentData = null;
-        const rawCurrent = localStorage.getItem(STORAGE_KEY);
-        if (rawCurrent) {
-          currentData = JSON.parse(rawCurrent);
-        }
-
-        // Periksa kunci lama (legacy) untuk menyelamatkan akun siswa, kelas, tugas, materi, atau nilai yang pernah dibuat
         LEGACY_KEYS.forEach(k => {
-          try {
-            const rawOld = localStorage.getItem(k);
-            if (!rawOld) return;
-            const oldParsed = JSON.parse(rawOld);
-            if (!oldParsed || typeof oldParsed !== 'object') return;
-            if (!currentData) {
-              currentData = oldParsed;
-            } else {
-              currentData.classes = mergeUniqueById(currentData.classes, oldParsed.classes, 'id');
-              currentData.subjects = mergeUniqueById(currentData.subjects, oldParsed.subjects, 'id');
-              currentData.students = mergeUniqueById(currentData.students, oldParsed.students, 'id');
-              currentData.teachers = mergeUniqueById(currentData.teachers, oldParsed.teachers, 'id');
-              currentData.materials = mergeUniqueById(currentData.materials, oldParsed.materials, 'id');
-              currentData.assignments = mergeUniqueById(currentData.assignments, oldParsed.assignments, 'id');
-              currentData.submissions = mergeUniqueById(currentData.submissions, oldParsed.submissions, 'id');
-              currentData.examResults = mergeUniqueById(currentData.examResults, oldParsed.examResults, 'id');
-              currentData.youtubeVideos = mergeUniqueById(currentData.youtubeVideos, oldParsed.youtubeVideos, 'id');
-              if (oldParsed.packMeta) {
-                currentData.packMeta = { ...(oldParsed.packMeta || {}), ...(currentData.packMeta || {}) };
-              }
-            }
-          } catch (innerErr) {}
+          try { localStorage.removeItem(k); } catch (e) {}
         });
-
-        return currentData;
+        const rawCurrent = localStorage.getItem(STORAGE_KEY);
+        return rawCurrent ? JSON.parse(rawCurrent) : null;
       } catch (e) {
         return null;
       }
@@ -4810,10 +4789,84 @@
                 </button>
               </form>
             </div>
+
+            <!-- Panel Bersihkan Data Lama (Lokal & Cloud Firestore) -->
+            <div class="bento-card p-6 mt-6 border-rose-200 bg-rose-50/40">
+              <h3 class="text-base font-extrabold text-rose-800 flex items-center gap-2 mb-2">
+                <i class="fa-solid fa-trash-can-arrow-up text-rose-600"></i>
+                <span>Bersihkan Data yang Sudah Ada</span>
+              </h3>
+              <p class="text-xs text-slate-600 leading-relaxed mb-4">
+                Menghapus seluruh data Kelas, Siswa, Guru, Materi, Tugas, Pengumpulan Tugas, Rekap Nilai Latihan, dan Video YouTube (baik di perangkat ini maupun di <strong>Firebase Cloud Firestore</strong> jika terhubung). Bank Soal 9 Mapel & akun Admin tetap dipertahankan.
+              </p>
+              <button type="button" onclick="window.openResetAllDataModal()" class="w-full py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-broom"></i>
+                <span>Hapus & Bersihkan Semua Data Sekarang</span>
+              </button>
+            </div>
           </div>
         </div>
       `;
     }
+
+    window.openResetAllDataModal = function() {
+      window.openGlobalModal('Konfirmasi Pembersihan Semua Data LMS', `
+        <div class="space-y-4">
+          <div class="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 leading-relaxed">
+            <strong>Perhatian:</strong> Tindakan ini akan mengosongkan seluruh daftar <strong>Kelas, Data Siswa, Materi, Tugas, Pengumpulan Tugas, Nilai Latihan Soal, dan Video YouTube</strong> pada penyimpanan lokal maupun Cloud Firestore yang terhubung. Bank Soal 9 Mata Pelajaran tetap aman.
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" onclick="window.closeGlobalModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">Batal</button>
+            <button type="button" onclick="window.handleConfirmResetAllData()" class="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold shadow-sm">
+              Ya, Bersihkan Semua Data
+            </button>
+          </div>
+        </div>
+      `);
+    };
+
+    window.handleConfirmResetAllData = async function() {
+      window.closeGlobalModal();
+      updateSaveStatusBadge('SAVING', 'Membersihkan data...');
+
+      // 1. Jika terhubung ke Firebase Cloud Firestore, hapus semua dokumen pada koleksi data operasional
+      if (isCloudConnected && fbDb && fbMod) {
+        const colsToClear = ['classes', 'students', 'teachers', 'materials', 'assignments', 'submissions', 'exam_results', 'youtube_videos'];
+        for (const colName of colsToClear) {
+          try {
+            const snap = await fbMod.getDocs(fbMod.collection(fbDb, colName));
+            const deletions = [];
+            snap.forEach(d => deletions.push(fbMod.deleteDoc(fbMod.doc(fbDb, colName, d.id))));
+            await Promise.all(deletions);
+          } catch (err) {
+            console.warn(`Gagal membersihkan koleksi cloud ${colName}:`, err);
+          }
+        }
+      }
+
+      // 2. Kosongkan seluruh state lokal sambil mempertahankan Bank Soal & Pengaturan Admin
+      appState.db.classes = [];
+      appState.db.students = [];
+      appState.db.teachers = [];
+      appState.db.materials = [];
+      appState.db.assignments = [];
+      appState.db.submissions = [];
+      appState.db.examResults = [];
+      appState.db.youtubeVideos = [];
+      appState.penilaianFolder = null;
+      appState.rekapFilter.selectedExamFolder = null;
+      appState.rekapFilter.selectedTaskFolder = null;
+      appState.pendingSubmissionPhotos = [];
+
+      // Bersihkan antrean sinkronisasi & penyimpanan lama
+      savePendingQueue([]);
+      LEGACY_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+      safeSaveLocal(appState.db);
+
+      updateSaveStatusBadge('SAVED', 'Database Bersih');
+      window.showToast('Seluruh data lama berhasil dihapus! Aplikasi kini bersih dan siap diisi data baru.', 'success');
+      renderActivePage();
+    };
 
     window.handleSaveSchoolProfile = function(e) {
       e.preventDefault();
